@@ -18,9 +18,15 @@ export default function AdminOtpPage() {
   const searchParams = useSearchParams();
   const { user, completeAdminSignIn, loading } = useAuth();
   const { addToast } = useToast();
-  const [otp, setOtp] = useState('');
-  const [submitting, setSubmitting] = useState(false);
   const challenge = useMemo(() => readAdminOtpChallenge(), []);
+  const [otp, setOtp] = useState(challenge?.debugOtp ?? '');
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (challenge?.debugOtp) {
+      setOtp(challenge.debugOtp);
+    }
+  }, [challenge]);
 
   useEffect(() => {
     if (!loading && user) {
@@ -77,6 +83,12 @@ export default function AdminOtpPage() {
           {challenge && (
             <div className="rounded-2xl bg-[var(--glass-bg)] p-4 text-sm font-medium text-[var(--color-text-main)]/70 mb-6">
               OTP verification is required for <span className="font-black text-[var(--color-text-heading)]">{challenge.email}</span>.
+              {challenge.debugOtp && (
+                <div className="mt-3 rounded-xl border border-brand-500/30 bg-brand-500/10 p-3">
+                  <div className="text-[11px] font-black uppercase tracking-[0.2em] text-brand-600 mb-1">Test OTP</div>
+                  <div className="text-lg font-black tracking-[0.35em] text-[var(--color-text-heading)]">{challenge.debugOtp}</div>
+                </div>
+              )}
             </div>
           )}
 

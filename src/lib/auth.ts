@@ -68,6 +68,7 @@ export interface StoredAdminOtpChallenge {
   challengeId: string;
   email: string;
   expiresAt: string;
+  debugOtp?: string;
 }
 
 export function readAdminOtpChallenge(): StoredAdminOtpChallenge | null {

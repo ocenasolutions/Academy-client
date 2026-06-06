@@ -8,10 +8,10 @@ import { User, UserRole } from '@/types';
 interface AuthContextValue {
   user: User | null;
   loading: boolean;
-  signIn: (email: string, password: string) => Promise<
-    | { type: 'authenticated'; user: User }
-    | { type: 'otp_required'; challengeId: string; expiresAt: string; email: string }
-  >;
+    signIn: (email: string, password: string) => Promise<
+      | { type: 'authenticated'; user: User }
+      | { type: 'otp_required'; challengeId: string; expiresAt: string; email: string; debugOtp?: string }
+    >;
   completeAdminSignIn: (challengeId: string, otp: string) => Promise<User>;
   signUp: (input: {
     firstName: string;
@@ -69,6 +69,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           challengeId: tokens.challengeId,
           expiresAt: tokens.expiresAt,
           email: tokens.email,
+          debugOtp: tokens.debugOtp,
         };
       }
 

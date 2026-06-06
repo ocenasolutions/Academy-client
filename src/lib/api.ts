@@ -235,7 +235,7 @@ async function request<T>(path: string, init: RequestInit = {}, options: { auth?
 export async function login(email: string, password: string) {
   return request<
     | { accessToken: string; refreshToken: string }
-    | { requiresOtp: true; challengeId: string; expiresAt: string; email: string }
+    | { requiresOtp: true; challengeId: string; expiresAt: string; email: string; debugOtp?: string }
   >('auth/login', {
     method: 'POST',
     body: JSON.stringify({ email, password }),

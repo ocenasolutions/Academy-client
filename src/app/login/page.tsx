@@ -35,8 +35,9 @@ export default function Login() {
           challengeId: result.challengeId,
           email: result.email,
           expiresAt: result.expiresAt,
+          debugOtp: result.debugOtp,
         });
-        addToast('Admin OTP sent. Enter the code to finish signing in.', 'info');
+        addToast(result.debugOtp ? 'Test OTP generated. The code is shown on the next page.' : 'Admin OTP sent. Enter the code to finish signing in.', 'info');
         const redirect = searchParams.get('redirect');
         router.push(`/login/admin-otp${redirect ? `?redirect=${encodeURIComponent(redirect)}` : ''}`);
         return;
@@ -83,7 +84,7 @@ export default function Login() {
           </form>
 
           <div className="mt-8 text-xs text-[var(--color-text-main)]/70 bg-[var(--glass-bg)] p-4 rounded-2xl">
-            Seeded accounts: `student@academy.test`, `instructor@academy.test`, `admin@academy.test` with password `Password123!`. Admin login also requires OTP.
+            Seeded accounts: `student@academy.test`, `instructor@academy.test`, `admin@academy.test`, `testing.ocena@gmail.com` with password `Password123!`. Admin login also requires OTP.
           </div>
 
           <div className="mt-10 text-center font-bold text-[var(--color-text-main)]/60 bg-[var(--glass-bg)] py-4 rounded-2xl">
