@@ -1,6 +1,0 @@
-{
-  "name": "CourseForge - Premium LMS",
-  "description": "A premium learning platform featuring high-end UI/UX, unified theme switcher, instructor analytics, student achievements, and interactive dashboards.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}

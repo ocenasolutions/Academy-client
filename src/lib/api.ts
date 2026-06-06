@@ -22,6 +22,19 @@ type Envelope<T> = {
   meta?: Record<string, unknown>;
 };
 
+export interface CheckoutResponse {
+  orderId: string;
+  provider: string;
+  checkoutSessionUrl: string | null;
+  razorpayKeyId: string | null;
+  razorpayOrderId: string | null;
+  currency: string;
+  fallback: boolean;
+  subtotalCents: number;
+  discountCents: number;
+  totalCents: number;
+}
+
 type ServerCourse = any;
 type ServerEnrollment = any;
 type ServerCertificate = any;
@@ -396,7 +409,7 @@ export async function createSupportTicket(body: { subject: string; description: 
 }
 
 export async function createCheckout(courseIds: string[], couponCode?: string) {
-  return request<{ orderId: string; checkoutSessionUrl: string | null; fallback: boolean; subtotalCents: number; discountCents: number; totalCents: number }>('payments/checkout', {
+  return request<CheckoutResponse>('payments/checkout', {
     method: 'POST',
     body: JSON.stringify({ courseIds, couponCode }),
   }, { auth: true });
@@ -405,6 +418,16 @@ export async function createCheckout(courseIds: string[], couponCode?: string) {
 export async function completeOrder(orderId: string) {
   return request<{ success: boolean }>(`payments/orders/${orderId}/complete`, {
     method: 'POST',
+  }, { auth: true });
+}
+
+export async function verifyRazorpayPayment(
+  orderId: string,
+  body: { razorpayOrderId: string; razorpayPaymentId: string; razorpaySignature: string },
+) {
+  return request<{ success: boolean }>(`payments/orders/${orderId}/razorpay/verify`, {
+    method: 'POST',
+    body: JSON.stringify(body),
   }, { auth: true });
 }
 

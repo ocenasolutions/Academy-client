@@ -72,8 +72,8 @@ export const adminSectionGroups: AdminSectionGroup[] = [
       },
       {
         slug: 'ai-course-builder',
-        title: 'AI Course Builder Monitoring',
-        description: 'Monitor generated content, failed jobs, prompt usage, and content quality risks.',
+        title: 'AI Course Builder',
+        description: 'Build, price, preview, and publish AI-generated courses from one place.',
         subpages: [
           { slug: 'generations', title: 'AI Generations', description: 'Review instructor AI generation activity.' },
           { slug: 'prompt-logs', title: 'Prompt Logs', description: 'Inspect prompts and generated results.' },
@@ -236,4 +236,17 @@ export function getAdminSection(sectionSlug?: string) {
 
 export function getAdminSubpage(sectionSlug?: string, subpageSlug?: string) {
   return getAdminSection(sectionSlug)?.subpages.find((subpage) => subpage.slug === subpageSlug);
+}
+
+export function getAdminSectionLandingHref(sectionSlug?: string) {
+  const section = getAdminSection(sectionSlug);
+  if (!section) {
+    return '/dashboard/admin';
+  }
+
+  if (section.slug === 'ai-course-builder' || section.subpages.length === 0) {
+    return `/dashboard/admin/${section.slug}`;
+  }
+
+  return `/dashboard/admin/${section.slug}/${section.subpages[0].slug}`;
 }

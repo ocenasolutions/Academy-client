@@ -1,110 +1,216 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from 'recharts';
-import { ArrowUpRight, Award, Target } from 'lucide-react';
+import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
+import { ArrowRight, BookOpen, CheckCircle2, Clock3, Trophy } from 'lucide-react';
 import { DashboardLayout } from '@/components/DashboardLayout';
-import { getMyEnrollments } from '@/lib/api';
-import { useProtectedPage } from '@/lib/use-protected-page';
-import { Enrollment } from '@/types';
+import { getMyCertificates, getMyEnrollments } from '@/lib/api';
 import { useToast } from '@/contexts/ToastContext';
+import { useProtectedPage } from '@/lib/use-protected-page';
+import { Certificate, Enrollment } from '@/types';
+
+type ProgressFilter = 'ALL' | 'ACTIVE' | 'COMPLETED';
 
 export default function StudentProgress() {
+  const searchParams = useSearchParams();
   const { addToast } = useToast();
-  const { user } = useProtectedPage(['STUDENT']);
+  const { user, loading: authLoading } = useProtectedPage(['STUDENT']);
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
-  const [chartType, setChartType] = useState<'radar' | 'bar'>('radar');
+  const [certificates, setCertificates] = useState<Certificate[]>([]);
+  const [filter, setFilter] = useState<ProgressFilter>('ALL');
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!user) return;
-    getMyEnrollments().then(setEnrollments);
+    Promise.all([getMyEnrollments(), getMyCertificates()])
+      .then(([nextEnrollments, nextCertificates]) => {
+        setEnrollments(nextEnrollments);
+        setCertificates(nextCertificates);
+      })
+      .finally(() => setLoading(false));
   }, [user]);
 
-  const categoryData = useMemo(() => {
-    const byCategory = new Map<string, { subject: string; total: number; count: number }>();
-    enrollments.forEach((enrollment) => {
-      const existing = byCategory.get(enrollment.course.category) || { subject: enrollment.course.category, total: 0, count: 0 };
-      existing.total += enrollment.progressPercent;
-      existing.count += 1;
-      byCategory.set(enrollment.course.category, existing);
-    });
-    return Array.from(byCategory.values()).map((item) => ({
-      subject: item.subject,
-      A: Math.round(item.total / item.count),
-      fullMark: 100,
-    }));
+  useEffect(() => {
+    if (searchParams.get('checkout') === 'success') {
+      addToast('Checkout completed and your course is now in progress.', 'success');
+    }
+  }, [addToast, searchParams]);
+
+  const activeCourses = enrollments.filter((enrollment) => enrollment.status === 'ACTIVE');
+  const completedCourses = enrollments.filter((enrollment) => enrollment.status === 'COMPLETED');
+  const averageProgress = useMemo(() => {
+    if (!enrollments.length) return null;
+    return Math.round(enrollments.reduce((sum, enrollment) => sum + enrollment.progressPercent, 0) / enrollments.length);
   }, [enrollments]);
 
-  const courseProgressData = enrollments.map((enrollment, index) => ({
-    name: enrollment.course.title.length > 16 ? `${enrollment.course.title.slice(0, 16)}…` : enrollment.course.title,
-    progress: Math.round(enrollment.progressPercent),
-    fill: ['var(--brand-500)', '#10b981', '#8b5cf6', '#f59e0b'][index % 4],
-  }));
+  const filteredEnrollments = useMemo(() => {
+    if (filter === 'ACTIVE') return activeCourses;
+    if (filter === 'COMPLETED') return completedCourses;
+    return enrollments;
+  }, [activeCourses, completedCourses, enrollments, filter]);
+
+  const certificatePreview = certificates.slice(0, 6);
 
   return (
     <DashboardLayout role="student">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-10 gap-4">
-        <div>
-          <h1 className="text-4xl font-display font-black text-[var(--color-text-heading)] mb-2">Course Progress</h1>
-          <p className="text-[var(--color-text-main)]/70 font-medium">Track your live learning journey across enrolled categories and courses.</p>
-        </div>
-        <button onClick={() => addToast('Progress sharing can be connected to certificates and public profiles next.', 'info')} className="clay-btn !py-2.5 !px-6 flex items-center gap-2">
-          Share Progress <ArrowUpRight className="w-4 h-4" />
-        </button>
-      </div>
+      <div className="space-y-10">
+        <section className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <div className="inline-flex items-center gap-2 rounded-full bg-indigo-50 px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-indigo-600">
+              Progress center
+            </div>
+            <h1 className="mt-4 text-5xl font-extrabold tracking-tight text-slate-950 md:text-[3.8rem]">Track every course</h1>
+            <p className="mt-4 max-w-3xl text-lg leading-8 text-slate-600">
+              See the full list of enrollments, progress levels, and certificates in one place. This page is the detailed view for longer learning journeys.
+            </p>
+          </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-        <div className="clay p-8 flex flex-col">
-          <div className="flex items-center justify-between mb-8">
-            <h2 className="text-2xl font-display font-black text-[var(--color-text-heading)] flex items-center gap-2">
-              <Target className="w-6 h-6 text-brand-500" /> Category Progress
-            </h2>
-            <div className="flex gap-2">
-              <button onClick={() => setChartType('radar')} className={`px-3 py-1 text-sm font-bold rounded-lg transition-colors ${chartType === 'radar' ? 'bg-brand-500 text-white' : 'bg-[var(--glass-bg)] text-[var(--color-text-main)]/60 hover:bg-white'}`}>Radar</button>
-              <button onClick={() => setChartType('bar')} className={`px-3 py-1 text-sm font-bold rounded-lg transition-colors ${chartType === 'bar' ? 'bg-brand-500 text-white' : 'bg-[var(--glass-bg)] text-[var(--color-text-main)]/60 hover:bg-white'}`}>Bar</button>
+          <div className="inline-flex items-center gap-3 rounded-full bg-slate-100 px-5 py-3 text-sm font-medium text-slate-900 shadow-sm">
+            <Trophy className="h-4 w-4 text-indigo-600" />
+            <span>{completedCourses.length} completed course{completedCourses.length === 1 ? '' : 's'}</span>
+          </div>
+        </section>
+
+        <section className="grid gap-6 md:grid-cols-4">
+          <MetricCard label="Active Enrollments" value={loading || authLoading ? '...' : String(activeCourses.length)} />
+          <MetricCard label="Completed" value={loading || authLoading ? '...' : String(completedCourses.length)} accent="text-emerald-700" />
+          <MetricCard label="Certificates" value={loading || authLoading ? '...' : String(certificates.length)} accent="text-indigo-700" />
+          <MetricCard label="Average Progress" value={loading || authLoading || averageProgress === null ? '...' : `${averageProgress}%`} accent="text-amber-700" />
+        </section>
+
+        <section className="rounded-[30px] border border-slate-200 bg-white p-6 shadow-[0_16px_50px_rgba(15,23,42,0.06)] md:p-8">
+          <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+            <div>
+              <h2 className="flex items-center gap-3 text-2xl font-bold tracking-tight text-slate-950">
+                <BookOpen className="h-6 w-6 text-indigo-600" />
+                Course progress
+              </h2>
+              <p className="mt-2 text-sm leading-6 text-slate-600">
+                Use filters to jump between active courses and completed learning paths.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {(['ALL', 'ACTIVE', 'COMPLETED'] as ProgressFilter[]).map((item) => {
+                const active = filter === item;
+                return (
+                  <button
+                    key={item}
+                    type="button"
+                    onClick={() => setFilter(item)}
+                    className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                      active
+                        ? 'bg-indigo-600 text-white shadow-[0_12px_28px_rgba(79,70,229,0.22)]'
+                        : 'border border-slate-200 bg-white text-slate-600 hover:border-indigo-300 hover:text-indigo-600'
+                    }`}
+                  >
+                    {item === 'ALL' ? 'All' : item === 'ACTIVE' ? 'Active' : 'Completed'}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
-          <div className="flex-1 min-h-[350px]">
-            <ResponsiveContainer width="100%" height="100%">
-              {chartType === 'radar' ? (
-                <RadarChart cx="50%" cy="50%" outerRadius="70%" data={categoryData}>
-                  <PolarGrid stroke="rgba(0,0,0,0.1)" />
-                  <PolarAngleAxis dataKey="subject" tick={{ fill: 'var(--color-text-main)', fontSize: 12, fontWeight: 600 }} />
-                  <PolarRadiusAxis angle={30} domain={[0, 100]} tick={{ fill: 'var(--color-text-main)', opacity: 0.5 }} />
-                  <Radar name="Proficiency" dataKey="A" stroke="var(--brand-500)" fill="var(--brand-500)" fillOpacity={0.6} />
-                  <Tooltip contentStyle={{ borderRadius: '1rem', border: 'none', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', background: 'rgba(255,255,255,0.9)' }} itemStyle={{ color: 'var(--color-text-heading)', fontWeight: 'bold' }} />
-                </RadarChart>
-              ) : (
-                <BarChart data={categoryData} layout="vertical" margin={{ top: 0, right: 30, left: 40, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="rgba(0,0,0,0.05)" />
-                  <XAxis type="number" domain={[0, 100]} axisLine={false} tickLine={false} tick={{ fill: 'var(--color-text-main)', opacity: 0.7 }} />
-                  <YAxis type="category" dataKey="subject" axisLine={false} tickLine={false} tick={{ fill: 'var(--color-text-main)', fontWeight: 600 }} />
-                  <Tooltip cursor={{ fill: 'transparent' }} contentStyle={{ borderRadius: '1rem', border: 'none', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', background: 'rgba(255,255,255,0.9)' }} itemStyle={{ color: 'var(--color-text-heading)', fontWeight: 'bold' }} />
-                  <Bar dataKey="A" name="Proficiency" fill="var(--brand-500)" radius={[0, 8, 8, 0]} barSize={24} />
-                </BarChart>
-              )}
-            </ResponsiveContainer>
-          </div>
-        </div>
+          <div className="mt-6 space-y-3">
+            {filteredEnrollments.length === 0 && !loading ? (
+              <div className="rounded-[24px] border border-dashed border-slate-300 px-6 py-10 text-sm text-slate-500">
+                No courses match this filter.
+              </div>
+            ) : (
+              filteredEnrollments.map((enrollment) => (
+                <Link
+                  key={enrollment.id}
+                  href={`/courses/${enrollment.course.id}`}
+                  className="flex flex-col gap-4 rounded-[24px] border border-slate-200 px-4 py-4 transition hover:border-indigo-300 hover:bg-slate-50 md:flex-row md:items-center md:justify-between"
+                >
+                  <div className="flex min-w-0 flex-1 gap-4">
+                    <img
+                      src={enrollment.course.thumbnail}
+                      alt={enrollment.course.title}
+                      className="h-20 w-28 rounded-[18px] object-cover shadow-sm"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-3">
+                        <h3 className="text-base font-bold tracking-tight text-slate-950">{enrollment.course.title}</h3>
+                        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                          {enrollment.status}
+                        </span>
+                      </div>
+                      <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-600">
+                        {enrollment.course.summary || enrollment.course.description || 'Continue with the next lesson and complete the course path.'}
+                      </p>
+                      <div className="mt-3 flex items-center gap-4 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                        <span>{enrollment.course.instructor.name}</span>
+                        <span>{enrollment.course.duration || 'Self-paced'}</span>
+                      </div>
+                    </div>
+                  </div>
 
-        <div className="clay p-8 flex flex-col">
-          <h2 className="text-2xl font-display font-black text-[var(--color-text-heading)] mb-8 flex items-center gap-2">
-            <Award className="w-6 h-6 text-purple-500" /> Top Courses Progress
-          </h2>
-          <div className="flex-1 min-h-[350px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={courseProgressData} margin={{ top: 20, right: 30, left: 0, bottom: 20 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(0,0,0,0.05)" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: 'var(--color-text-main)', fontSize: 12, fontWeight: 600 }} dy={10} />
-                <YAxis axisLine={false} tickLine={false} domain={[0, 100]} tickFormatter={(val) => `${val}%`} tick={{ fill: 'var(--color-text-main)', opacity: 0.7 }} />
-                <Tooltip cursor={{ fill: 'rgba(0,0,0,0.02)' }} contentStyle={{ borderRadius: '1rem', border: 'none', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', background: 'rgba(255,255,255,0.9)' }} itemStyle={{ color: 'var(--color-text-heading)', fontWeight: 'bold' }} formatter={(value) => [`${value}%`, 'Completed']} />
-                <Bar dataKey="progress" radius={[8, 8, 0, 0]} barSize={40} />
-              </BarChart>
-            </ResponsiveContainer>
+                  <div className="min-w-[240px] md:text-right">
+                    <div className="flex items-center gap-2 text-sm font-semibold text-indigo-600 md:justify-end">
+                      <Clock3 className="h-4 w-4" />
+                      {Math.round(enrollment.progressPercent)}% complete
+                    </div>
+                    <div className="mt-3 h-2 rounded-full bg-slate-200 md:w-60">
+                      <div className="h-2 rounded-full bg-gradient-to-r from-indigo-500 to-indigo-600" style={{ width: `${enrollment.progressPercent}%` }} />
+                    </div>
+                    <div className="mt-3 inline-flex items-center gap-2 text-sm font-semibold text-slate-600">
+                      View course
+                      <ArrowRight className="h-4 w-4" />
+                    </div>
+                  </div>
+                </Link>
+              ))
+            )}
           </div>
-        </div>
+        </section>
+
+        <section className="rounded-[30px] border border-slate-200 bg-white p-6 shadow-[0_16px_50px_rgba(15,23,42,0.06)] md:p-8">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <h2 className="flex items-center gap-3 text-2xl font-bold tracking-tight text-slate-950">
+                <CheckCircle2 className="h-6 w-6 text-indigo-600" />
+                Certificates
+              </h2>
+              <p className="mt-2 text-sm leading-6 text-slate-600">Completed courses and the proof you can share or download.</p>
+            </div>
+            <Link href="/dashboard/student/certificates" className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50">
+              Open certificates
+            </Link>
+          </div>
+
+          <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {certificatePreview.length === 0 && !loading ? (
+              <div className="rounded-[24px] border border-dashed border-slate-300 px-6 py-10 text-sm text-slate-500 md:col-span-2 xl:col-span-3">
+                No certificates yet. Finish a course to unlock this section.
+              </div>
+            ) : (
+              certificatePreview.map((certificate) => (
+                <Link
+                  key={certificate.id}
+                  href={`/certificate/${certificate.id}`}
+                  className="rounded-[24px] border border-slate-200 bg-slate-50 p-5 transition hover:border-indigo-300 hover:bg-white"
+                >
+                  <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Certificate</div>
+                  <div className="mt-2 text-base font-bold text-slate-950">{certificate.courseTitle}</div>
+                  <div className="mt-2 text-sm text-slate-600">{certificate.certificateNo}</div>
+                  <div className="mt-4 text-sm font-semibold text-indigo-600">View certificate</div>
+                </Link>
+              ))
+            )}
+          </div>
+        </section>
       </div>
     </DashboardLayout>
+  );
+}
+
+function MetricCard({ label, value, accent = 'text-indigo-600' }: { label: string; value: string; accent?: string }) {
+  return (
+    <div className="rounded-[24px] border border-slate-200 bg-white p-6 shadow-[0_16px_40px_rgba(15,23,42,0.06)]">
+      <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{label}</div>
+      <div className={`mt-6 text-4xl font-extrabold tracking-tight ${accent}`}>{value}</div>
+    </div>
   );
 }

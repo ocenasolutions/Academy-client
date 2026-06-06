@@ -1,20 +1,59 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+# Academy Client
 
-# Run and deploy your AI Studio app
+Frontend for the Academy LMS and course marketplace.
 
-This contains everything you need to run your app locally.
+## What it does
 
-View your app in AI Studio: https://ai.studio/apps/03deed09-18e1-4702-a869-659995cb1cdb
+- Student marketplace and course player
+- Instructor dashboard
+- Admin dashboard
+- Course enrollment, progress, certificates, payments, and support
+- Admin login with OTP
 
-## Run Locally
+## Local Development
 
-**Prerequisites:**  Node.js
+Prerequisites:
+- Node.js 22+
 
+Install dependencies:
+```bash
+npm install
+```
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+Run locally:
+```bash
+npm run dev
+```
+
+Build:
+```bash
+npm run build
+```
+
+Start production build:
+```bash
+npm run start
+```
+
+## Environment
+
+Create a `.env.local` file with:
+
+For local backend testing, you can point it to:
+
+```env
+NEXT_PUBLIC_API_URL=http://localhost:4000/api/v1
+```
+
+## Test Accounts
+
+Seeded accounts use:
+
+```text
+Password123!
+```
+
+## Notes
+
+- This repo is the frontend only.
+- The app is a Next.js project and is deployed separately from the backend.

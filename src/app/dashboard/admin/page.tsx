@@ -1,9 +1,9 @@
 'use client';
 
 import { ReactNode, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { BarChart, Bar, Line, LineChart, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { BookOpen, Bot, DollarSign, ShieldAlert, TrendingUp, UserCheck, Users } from 'lucide-react';
-import { AiCourseStudio } from '@/components/AiCourseStudio';
 import { DashboardLayout } from '@/components/DashboardLayout';
 import { getPlatformAnalytics } from '@/lib/api';
 import { useProtectedPage } from '@/lib/use-protected-page';
@@ -31,9 +31,18 @@ export default function AdminDashboard() {
           <h1 className="text-4xl font-display font-black text-[var(--color-text-heading)]">Admin Overview</h1>
           <p className="mt-2 text-[var(--color-text-main)]/70 font-medium">Operational visibility for users, instructors, approvals, revenue, enrollments, and AI activity.</p>
         </div>
-        <div className="flex items-center gap-2 rounded-2xl bg-orange-500/10 px-4 py-2 text-sm font-bold text-orange-600 shadow-inner w-fit">
-          <ShieldAlert className="w-4 h-4" />
-          <span>{analytics ? analytics.pendingInstructorApprovals + analytics.pendingCourseApprovals : '...'} approvals waiting</span>
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2 rounded-2xl bg-orange-500/10 px-4 py-2 text-sm font-bold text-orange-600 shadow-inner w-fit">
+            <ShieldAlert className="w-4 h-4" />
+            <span>{analytics ? analytics.pendingInstructorApprovals + analytics.pendingCourseApprovals : '...'} approvals waiting</span>
+          </div>
+          <Link
+            href="/dashboard/admin/ai-course-builder"
+            className="inline-flex items-center gap-2 rounded-2xl bg-brand-500 px-4 py-2 text-sm font-black text-white shadow-[0_14px_24px_rgba(var(--brand-500-rgb,59,130,246),0.22)] transition hover:translate-y-[-1px]"
+          >
+            <Bot className="h-4 w-4" />
+            Open AI Builder
+          </Link>
         </div>
       </div>
 
@@ -49,10 +58,6 @@ export default function AdminDashboard() {
         <StatPanel title="Pending Course Approvals" value={analytics?.pendingCourseApprovals} helper="Courses waiting for review or publishing" />
         <StatPanel title="Recent Enrollments" value={analytics?.recentEnrollments.length} helper="Latest student course joins" />
         <StatPanel title="AI Generations Today" value={analytics?.aiCourseGenerationsToday} helper="Instructor AI course builder activity" icon={<Bot className="w-4 h-4 text-brand-500" />} />
-      </div>
-
-      <div className="mb-10">
-        <AiCourseStudio role="admin" />
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-8 mb-10">
@@ -90,7 +95,7 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-8 mb-10">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="clay p-8 flex flex-col">
           <h2 className="text-2xl font-display font-black text-[var(--color-text-heading)] mb-6 flex items-center gap-2"><ShieldAlert className="w-6 h-6 text-orange-500" /> Recent Registrations</h2>
           <div className="flex-1 space-y-4">
@@ -107,9 +112,7 @@ export default function AdminDashboard() {
             ))}
           </div>
         </div>
-      </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <div className="clay p-8">
           <h2 className="text-2xl font-display font-black text-[var(--color-text-heading)] mb-6">Recent Enrollments</h2>
           <div className="space-y-4">

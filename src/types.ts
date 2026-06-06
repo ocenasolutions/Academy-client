@@ -323,6 +323,12 @@ export interface AiCourseBlueprint {
       dataUrl: string;
       alt: string;
     };
+    moduleVisuals?: Array<{
+      title: string;
+      prompt: string;
+      dataUrl: string;
+      alt: string;
+    }>;
     trailerStoryboard: {
       prompt: string;
       scenes: string[];

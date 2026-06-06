@@ -20,119 +20,132 @@ export function Layout({ children }: { children: ReactNode }) {
   };
 
   return (
-    <div className="min-h-screen bg-[var(--color-bg-main)] flex flex-col relative">
-      <div className="fixed top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-brand-400/20 blur-[100px] pointer-events-none z-0" />
-      <div className="fixed bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-indigo-400/20 blur-[100px] pointer-events-none z-0" />
+    <div className="theme-shell min-h-screen flex flex-col relative overflow-x-hidden">
+      <div className="fixed -top-24 left-[-8rem] h-80 w-80 rounded-full bg-blue-300/20 blur-3xl pointer-events-none" />
+      <div className="fixed top-40 right-[-8rem] h-96 w-96 rounded-full bg-indigo-300/20 blur-3xl pointer-events-none" />
 
-      <header className="glass sticky top-4 mx-4 md:mx-8 z-50 rounded-3xl mt-4 mb-4 shadow-lg isolate">
-        <div className="px-6 min-h-20 py-4 flex items-center justify-between gap-8 flex-wrap">
-          <div className="flex items-center gap-12">
-            <Link href="/" className="text-2xl font-display font-bold tracking-tight text-[var(--color-text-heading)] flex items-center gap-3">
-              <div className="w-10 h-10 bg-brand-500 rounded-[14px] flex items-center justify-center text-white text-xl shadow-[4px_4px_10px_rgba(var(--brand-500-rgb, 59, 130, 246),0.3)] border border-brand-400">C</div>
+      <header className="theme-surface sticky top-0 z-50 border-b border-slate-200/80 shadow-sm">
+        <div className="mx-auto flex h-16 max-w-[1440px] items-center gap-4 px-4 md:px-10">
+          <Link href="/" className="flex items-center gap-3 text-[1.2rem] font-extrabold tracking-tight text-slate-950 md:text-[1.4rem]">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500 text-sm font-extrabold text-white shadow-sm">C</div>
               CourseForge
             </Link>
 
-            <nav className="hidden lg:flex items-center gap-6">
-              <Link href="/courses" className="text-sm font-semibold text-[var(--color-text-main)] hover:text-brand-600 transition-colors">Catalog</Link>
-              {user && (
-                <Link href={dashboardPath} className="text-sm font-semibold text-[var(--color-text-main)] hover:text-brand-600 transition-colors">
-                  Dashboard
-                </Link>
-              )}
-            </nav>
-          </div>
+          <nav className="hidden items-center gap-8 md:flex">
+            <Link href="/courses" className="border-b-2 border-blue-600 py-1 text-sm font-semibold text-slate-950">
+              Catalog
+            </Link>
+            {user ? (
+              <Link href={dashboardPath} className="py-1 text-sm font-medium text-slate-600 transition-colors hover:text-blue-600">
+                Dashboard
+              </Link>
+            ) : (
+              <Link href="/login" className="py-1 text-sm font-medium text-slate-600 transition-colors hover:text-blue-600">
+                Dashboard
+              </Link>
+            )}
+          </nav>
 
-          <form onSubmit={handleSearch} className="flex-1 max-w-xl hidden md:flex items-center relative">
-            <Search className="w-5 h-5 text-[var(--color-text-main)]/50 absolute left-4 pointer-events-none" />
+          <form onSubmit={handleSearch} className="relative hidden flex-1 max-w-[380px] lg:block">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="What do you want to learn?"
-              className="w-full clay-input !py-3 !pl-12 !pr-6 text-sm"
+              className="h-10 w-full rounded-full border border-slate-200 bg-white/80 pl-10 pr-4 text-sm text-slate-700 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
             />
           </form>
 
-          <div className="flex items-center gap-4 ml-auto">
+          <div className="ml-auto flex items-center gap-3 md:gap-4">
             <ThemeSwitcher />
             {user ? (
               <>
-                <Link href={dashboardPath} className="hidden sm:block text-sm font-bold text-[var(--color-text-main)] hover:text-brand-600 transition-colors">
-                  {user.name}
+                <Link href={dashboardPath} className="hidden items-center gap-2 rounded-full border-l border-slate-200 pl-4 text-right sm:flex">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-900">{user.name}</p>
+                    <p className="text-[10px] uppercase tracking-wider text-slate-500">{user.email}</p>
+                  </div>
+                  <img
+                    alt={user.name}
+                    src={user.avatar || 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=128&q=80'}
+                    className="h-10 w-10 rounded-full border border-slate-200 object-cover"
+                  />
                 </Link>
                 <button
                   onClick={() => signOut().then(() => navigate.push('/'))}
-                  className="hidden sm:inline-flex items-center justify-center gap-2 px-5 py-3 clay font-bold text-[var(--color-text-heading)]"
+                  className="hidden items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 transition hover:border-slate-300 hover:bg-slate-50 sm:inline-flex"
                 >
-                  <LogOut className="w-4 h-4" /> Sign Out
+                  <LogOut className="h-4 w-4" />
+                  Sign Out
                 </button>
               </>
             ) : (
               <>
-                <Link href="/login" className="hidden sm:block text-sm font-bold text-[var(--color-text-main)] hover:text-brand-600 transition-colors">
+                <Link href="/login" className="hidden text-sm font-semibold text-slate-600 transition hover:text-blue-600 sm:block">
                   Sign In
                 </Link>
-                <Link href="/register" className="hidden sm:inline-flex items-center justify-center px-6 py-3 clay-btn font-bold">
+                <Link href="/register" className="hidden rounded-full bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 sm:inline-flex">
                   Get Started
                 </Link>
               </>
             )}
-            <button className="md:hidden text-[var(--color-text-main)] p-2 clay rounded-xl">
-              <Menu className="w-6 h-6" />
+            <button className="rounded-full border border-slate-200 bg-white p-2 text-slate-600 shadow-sm md:hidden">
+              <Menu className="h-5 w-5" />
             </button>
           </div>
         </div>
       </header>
 
-      <main className="flex-1 flex flex-col relative z-10 w-full">{children}</main>
+      <main className="flex-1">{children}</main>
 
-      <footer className="glass border-t border-[var(--glass-border)] pt-16 pb-8 mt-auto relative z-10 mx-4 md:mx-8 mb-4 rounded-[2rem]">
-        <div className="max-w-7xl mx-auto px-6 grid grid-cols-1 md:grid-cols-4 gap-12 mb-16">
-          <div className="col-span-1 md:col-span-1">
-            <Link href="/" className="text-2xl font-display font-bold tracking-tight text-[var(--color-text-heading)] flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 bg-brand-500 rounded-[14px] flex items-center justify-center text-white text-xl shadow-[4px_4px_10px_rgba(var(--brand-500-rgb, 59, 130, 246),0.3)]">C</div>
+      <footer className="theme-surface mx-4 mb-4 mt-16 rounded-[2rem] px-4 py-12 shadow-[0_20px_60px_rgba(15,23,42,0.05)] md:mx-8 md:px-10">
+        <div className="mx-auto grid max-w-[1440px] gap-10 md:grid-cols-4">
+          <div>
+            <Link href="/" className="mb-5 flex items-center gap-3 text-xl font-extrabold tracking-tight text-slate-950">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500 text-sm font-extrabold text-white">C</div>
               CourseForge
             </Link>
-            <p className="text-sm text-[var(--color-text-main)]/80 leading-relaxed max-w-xs font-medium">
+            <p className="max-w-xs text-sm leading-6 text-slate-600">
               World-class learning for anyone, anywhere. Build your skills with live courses, structured progress, and certificates.
             </p>
           </div>
           <div>
-            <h4 className="font-bold text-[var(--color-text-heading)] mb-6 text-base">Platform</h4>
-            <ul className="space-y-4">
-              <li><Link href="/courses" className="text-sm font-medium text-[var(--color-text-main)]/70 hover:text-brand-600 transition-colors">Browse Catalog</Link></li>
-              <li><Link href={dashboardPath} className="text-sm font-medium text-[var(--color-text-main)]/70 hover:text-brand-600 transition-colors">Dashboard</Link></li>
-              <li><Link href="/settings" className="text-sm font-medium text-[var(--color-text-main)]/70 hover:text-brand-600 transition-colors">Settings</Link></li>
+            <h4 className="mb-5 text-sm font-bold uppercase tracking-widest text-slate-900">Platform</h4>
+            <ul className="space-y-4 text-sm text-slate-600">
+              <li><Link href="/courses" className="hover:text-blue-600">Browse Catalog</Link></li>
+              <li><Link href={dashboardPath} className="hover:text-blue-600">Dashboard</Link></li>
+              <li><Link href="/settings" className="hover:text-blue-600">Settings</Link></li>
             </ul>
           </div>
           <div>
-            <h4 className="font-bold text-[var(--color-text-heading)] mb-6 text-base">Roles</h4>
-            <ul className="space-y-4">
-              <li className="text-sm font-medium text-[var(--color-text-main)]/70">Students</li>
-              <li className="text-sm font-medium text-[var(--color-text-main)]/70">Instructors</li>
-              <li className="text-sm font-medium text-[var(--color-text-main)]/70">Platform Admins</li>
+            <h4 className="mb-5 text-sm font-bold uppercase tracking-widest text-slate-900">Roles</h4>
+            <ul className="space-y-4 text-sm text-slate-600">
+              <li>Students</li>
+              <li>Instructors</li>
+              <li>Platform Admins</li>
             </ul>
           </div>
           <div>
-            <h4 className="font-bold text-[var(--color-text-heading)] mb-6 text-base">Account</h4>
-            <ul className="space-y-4">
+            <h4 className="mb-5 text-sm font-bold uppercase tracking-widest text-slate-900">Account</h4>
+            <ul className="space-y-4 text-sm text-slate-600">
               {user ? (
                 <li>
-                  <button onClick={() => signOut().then(() => navigate.push('/'))} className="text-sm font-medium text-[var(--color-text-main)]/70 hover:text-brand-600 transition-colors">
+                  <button onClick={() => signOut().then(() => navigate.push('/'))} className="hover:text-blue-600">
                     Sign Out
                   </button>
                 </li>
               ) : (
                 <>
-                  <li><Link href="/login" className="text-sm font-medium text-[var(--color-text-main)]/70 hover:text-brand-600 transition-colors">Sign In</Link></li>
-                  <li><Link href="/register" className="text-sm font-medium text-[var(--color-text-main)]/70 hover:text-brand-600 transition-colors">Create Account</Link></li>
+                  <li><Link href="/login" className="hover:text-blue-600">Sign In</Link></li>
+                  <li><Link href="/register" className="hover:text-blue-600">Create Account</Link></li>
                 </>
               )}
             </ul>
           </div>
         </div>
-        <div className="max-w-7xl mx-auto px-6 border-t border-[var(--glass-border)] pt-8 flex flex-col md:flex-row items-center justify-between">
-          <p className="text-sm font-medium text-[var(--color-text-main)]/60">© 2026 CourseForge. All rights reserved.</p>
+        <div className="mx-auto mt-10 max-w-[1440px] border-t border-slate-200 pt-6 text-sm text-slate-500">
+          © 2026 CourseForge. All rights reserved.
         </div>
       </footer>
     </div>

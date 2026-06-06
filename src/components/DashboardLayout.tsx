@@ -1,6 +1,6 @@
 'use client';
 
-import { ReactNode } from 'react';
+import { ReactNode, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
@@ -26,8 +26,9 @@ import {
   Users,
 } from 'lucide-react';
 import { ThemeSwitcher } from './ThemeSwitcher';
+import { StudentReferenceShell } from './StudentReferenceShell';
 import { useAuth } from '@/contexts/AuthContext';
-import { adminSectionGroups } from '@/lib/admin';
+import { adminSectionGroups, getAdminSectionLandingHref } from '@/lib/admin';
 
 type LinkItem = { name: string; href: string; icon: any };
 type LinkGroup = { group: string; items: LinkItem[] };
@@ -36,6 +37,17 @@ export function DashboardLayout({ children, role }: { children: ReactNode; role:
   const pathname = usePathname();
   const router = useRouter();
   const { user, signOut } = useAuth();
+  const [adminMobileMenuOpen, setAdminMobileMenuOpen] = useState(false);
+
+  useEffect(() => {
+    if (role === 'admin') {
+      setAdminMobileMenuOpen(false);
+    }
+  }, [pathname, role]);
+
+  if (role === 'student') {
+    return <StudentReferenceShell activeSidebar={getStudentSidebarKey(pathname)}>{children}</StudentReferenceShell>;
+  }
 
   const groupedLinks: LinkGroup[] =
     role === 'student'
@@ -64,36 +76,224 @@ export function DashboardLayout({ children, role }: { children: ReactNode; role:
         : [
             {
               group: 'Overview',
-              items: [{ name: 'Dashboard', href: '/dashboard/admin', icon: PieChart }],
+              items: [
+                { name: 'Dashboard', href: '/dashboard/admin', icon: PieChart },
+                {
+                  name: 'AI Course Builder',
+                  href: '/dashboard/admin/ai-course-builder',
+                  icon: Bot,
+                },
+              ],
             },
             ...adminSectionGroups
               .filter((group) => group.group !== 'Overview')
               .map((group) => ({
                 group: group.group,
-                items: group.sections.map((section) => ({
-                  name: section.title,
-                  href: `/dashboard/admin/${section.slug}`,
-                  icon:
-                    section.slug === 'users' ? Users :
-                    section.slug === 'instructors' ? ClipboardCheck :
-                    section.slug === 'courses' ? BookOpen :
-                    section.slug === 'ai-course-builder' ? Bot :
-                    section.slug === 'categories' ? FolderTree :
-                    section.slug === 'enrollments' ? BarChart :
-                    section.slug === 'payments' ? CreditCard :
-                    section.slug === 'coupons' ? Ticket :
-                    section.slug === 'reviews' ? MessageSquareWarning :
-                    section.slug === 'certificates' ? FileBadge :
-                    section.slug === 'moderation' ? Shield :
-                    section.slug === 'analytics' ? LayoutDashboard :
-                    section.slug === 'support' ? Ticket :
-                    section.slug === 'notifications' ? Bell :
-                    section.slug === 'settings' ? Settings :
-                    section.slug === 'audit-logs' ? Shield :
-                    LayoutDashboard,
-                })),
+                items: group.sections
+                  .filter((section) => section.slug !== 'ai-course-builder')
+                  .map((section) => ({
+                    name: section.title,
+                    href: getAdminSectionLandingHref(section.slug),
+                    icon:
+                      section.slug === 'users' ? Users :
+                      section.slug === 'instructors' ? ClipboardCheck :
+                      section.slug === 'courses' ? BookOpen :
+                      section.slug === 'categories' ? FolderTree :
+                      section.slug === 'enrollments' ? BarChart :
+                      section.slug === 'payments' ? CreditCard :
+                      section.slug === 'coupons' ? Ticket :
+                      section.slug === 'reviews' ? MessageSquareWarning :
+                      section.slug === 'certificates' ? FileBadge :
+                      section.slug === 'moderation' ? Shield :
+                      section.slug === 'analytics' ? LayoutDashboard :
+                      section.slug === 'support' ? Ticket :
+                      section.slug === 'notifications' ? Bell :
+                      section.slug === 'settings' ? Settings :
+                      section.slug === 'audit-logs' ? Shield :
+                      LayoutDashboard,
+                  })),
               })),
           ];
+
+  if (role === 'admin') {
+    return (
+      <div className="min-h-screen bg-[var(--color-bg-main)] text-[var(--color-text-heading)]">
+        <div
+          className={`fixed inset-0 z-50 bg-slate-950/30 backdrop-blur-[2px] transition-opacity duration-200 xl:hidden ${adminMobileMenuOpen ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'}`}
+          aria-hidden={!adminMobileMenuOpen}
+          onClick={() => setAdminMobileMenuOpen(false)}
+        />
+
+        <aside className="fixed left-0 top-0 z-40 hidden h-screen w-[308px] border-r border-[var(--glass-border)] bg-[var(--glass-bg)] shadow-[12px_0_40px_rgba(15,23,42,0.05)] backdrop-blur-xl xl:flex xl:flex-col">
+          <div className="flex h-20 items-center justify-between border-b border-[var(--color-text-heading)]/5 px-7">
+            <Link href="/" className="flex items-center gap-3 text-xl font-black tracking-tight text-[var(--color-text-heading)]">
+              <div className="flex h-10 w-10 items-center justify-center rounded-[14px] bg-brand-500 text-white shadow-[0_10px_24px_rgba(var(--brand-500-rgb,59,130,246),0.26)]">
+                C
+              </div>
+              CourseForge
+            </Link>
+          </div>
+
+          <div className="flex-1 overflow-y-auto px-4 py-6 custom-scrollbar">
+            <div className="mb-6 rounded-[22px] border border-[var(--glass-border)] bg-white/70 p-4">
+              <div className="text-[10px] font-black uppercase tracking-[0.24em] text-[var(--color-text-main)]/45">Admin Panel</div>
+              {user && (
+                <>
+                  <div className="mt-2 text-sm font-black text-[var(--color-text-heading)]">{user.name}</div>
+                  <div className="text-xs font-bold text-[var(--color-text-main)]/60">{user.email}</div>
+                </>
+              )}
+            </div>
+
+            <div className="space-y-6">
+              {groupedLinks.map((group) => (
+                <div key={group.group} className="space-y-2">
+                  <h4 className="px-3 text-[10px] font-black uppercase tracking-[0.22em] text-[var(--color-text-main)]/40">{group.group}</h4>
+                  <div className="space-y-1.5">
+                    {group.items.map((link) => {
+                      const isActive = link.href === '/dashboard/admin'
+                        ? pathname === link.href
+                        : pathname === link.href || pathname.startsWith(`${link.href}/`);
+                      const Icon = link.icon;
+                      return (
+                        <Link
+                          key={link.name}
+                          href={link.href}
+                          className={`flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-bold transition ${
+                            isActive
+                              ? 'bg-brand-500 text-white shadow-[0_14px_28px_rgba(var(--brand-500-rgb,59,130,246),0.28)]'
+                              : 'text-[var(--color-text-main)]/70 hover:bg-white hover:text-[var(--color-text-heading)]'
+                          }`}
+                        >
+                          <Icon className={`h-4 w-4 shrink-0 ${isActive ? 'text-white' : 'text-[var(--color-text-main)]/50'}`} />
+                          <span className="truncate">{link.name}</span>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="border-t border-[var(--color-text-heading)]/5 p-4">
+            <button
+              onClick={() => signOut().then(() => router.push('/'))}
+              className="flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-sm font-bold text-[var(--color-text-main)]/70 transition hover:bg-red-500 hover:text-white"
+            >
+              <LogOut className="h-4 w-4 shrink-0" />
+              Logout
+            </button>
+          </div>
+        </aside>
+
+        <aside
+          className={`fixed left-0 top-0 z-[60] h-dvh w-[300px] border-r border-[var(--glass-border)] bg-[var(--glass-bg)] shadow-[12px_0_40px_rgba(15,23,42,0.05)] backdrop-blur-xl transition-transform duration-200 xl:hidden ${adminMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}
+          aria-hidden={!adminMobileMenuOpen}
+        >
+          <div className="flex h-20 items-center justify-between border-b border-[var(--color-text-heading)]/5 px-7">
+            <Link href="/" className="flex items-center gap-3 text-xl font-black tracking-tight text-[var(--color-text-heading)]">
+              <div className="flex h-10 w-10 items-center justify-center rounded-[14px] bg-brand-500 text-white shadow-[0_10px_24px_rgba(var(--brand-500-rgb,59,130,246),0.26)]">
+                C
+              </div>
+              CourseForge
+            </Link>
+          </div>
+
+          <div className="flex-1 overflow-y-auto px-4 py-6 custom-scrollbar">
+            <div className="mb-6 rounded-[22px] border border-[var(--glass-border)] bg-white/70 p-4">
+              <div className="text-[10px] font-black uppercase tracking-[0.24em] text-[var(--color-text-main)]/45">Admin Panel</div>
+              {user && (
+                <>
+                  <div className="mt-2 text-sm font-black text-[var(--color-text-heading)]">{user.name}</div>
+                  <div className="text-xs font-bold text-[var(--color-text-main)]/60">{user.email}</div>
+                </>
+              )}
+            </div>
+
+            <div className="space-y-6">
+              {groupedLinks.map((group) => (
+                <div key={group.group} className="space-y-2">
+                  <h4 className="px-3 text-[10px] font-black uppercase tracking-[0.22em] text-[var(--color-text-main)]/40">{group.group}</h4>
+                  <div className="space-y-1.5">
+                    {group.items.map((link) => {
+                      const isActive = link.href === '/dashboard/admin'
+                        ? pathname === link.href
+                        : pathname === link.href || pathname.startsWith(`${link.href}/`);
+                      const Icon = link.icon;
+                      return (
+                        <Link
+                          key={link.name}
+                          href={link.href}
+                          onClick={() => setAdminMobileMenuOpen(false)}
+                          className={`flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-bold transition ${
+                            isActive
+                              ? 'bg-brand-500 text-white shadow-[0_14px_28px_rgba(var(--brand-500-rgb,59,130,246),0.28)]'
+                              : 'text-[var(--color-text-main)]/70 hover:bg-white hover:text-[var(--color-text-heading)]'
+                          }`}
+                        >
+                          <Icon className={`h-4 w-4 shrink-0 ${isActive ? 'text-white' : 'text-[var(--color-text-main)]/50'}`} />
+                          <span className="truncate">{link.name}</span>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="border-t border-[var(--color-text-heading)]/5 p-4">
+            <button
+              onClick={() => signOut().then(() => router.push('/'))}
+              className="flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-sm font-bold text-[var(--color-text-main)]/70 transition hover:bg-red-500 hover:text-white"
+            >
+              <LogOut className="h-4 w-4 shrink-0" />
+              Logout
+            </button>
+          </div>
+        </aside>
+
+        <div className="min-h-screen xl:pl-[308px]">
+          <header className="sticky top-0 z-30 border-b border-[var(--glass-border)] bg-[var(--glass-bg)] backdrop-blur-xl">
+            <div className="flex min-h-16 items-center justify-between gap-4 px-4 py-3 sm:px-5 xl:px-8">
+              <div className="flex min-w-0 items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setAdminMobileMenuOpen((current) => !current)}
+                  className="flex h-10 w-10 items-center justify-center rounded-2xl bg-brand-500 text-white shadow-[0_10px_22px_rgba(var(--brand-500-rgb,59,130,246),0.26)] xl:hidden"
+                  aria-label="Toggle admin navigation"
+                >
+                  <Menu className="h-5 w-5" />
+                </button>
+                <div className="hidden h-10 w-10 items-center justify-center rounded-2xl bg-brand-500 text-white shadow-[0_10px_22px_rgba(var(--brand-500-rgb,59,130,246),0.26)] xl:flex">
+                  <Menu className="h-5 w-5" />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-[10px] font-black uppercase tracking-[0.24em] text-brand-600">Admin workspace</div>
+                  <div className="hidden text-sm font-bold text-[var(--color-text-heading)] md:block">Monitor platform operations, approvals, analytics, and AI activity.</div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 sm:gap-3">
+                <ThemeSwitcher />
+                {user && (
+                  <div className="rounded-2xl bg-white/75 px-3 py-2 text-right shadow-sm sm:px-4">
+                    <div className="text-sm font-black text-[var(--color-text-heading)]">{user.name}</div>
+                    <div className="hidden text-xs font-bold text-[var(--color-text-main)]/60 sm:block">{user.email}</div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </header>
+
+          <main className="mx-auto w-full max-w-7xl px-3 py-5 sm:px-5 lg:px-8 lg:py-8">
+            {children}
+          </main>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen bg-[var(--color-bg-main)] overflow-hidden p-4 md:p-6 gap-6 relative">
@@ -191,6 +391,25 @@ export function DashboardLayout({ children, role }: { children: ReactNode; role:
   );
 }
 
+function getStudentSidebarKey(pathname: string) {
+  if (pathname.startsWith('/dashboard/student/payments')) {
+    return 'payments';
+  }
+  if (pathname.startsWith('/dashboard/student/certificates')) {
+    return 'certificates';
+  }
+  if (pathname.startsWith('/dashboard/student/support')) {
+    return 'support';
+  }
+  if (pathname.startsWith('/dashboard/student/progress')) {
+    return 'progress';
+  }
+  if (pathname.startsWith('/settings')) {
+    return 'settings';
+  }
+  return 'progress';
+}
+
 function TopLink({ href, label, active }: { href: string; label: string; active: boolean }) {
   return (
     <Link
@@ -202,6 +421,18 @@ function TopLink({ href, label, active }: { href: string; label: string; active:
       }`}
     >
       {label}
+    </Link>
+  );
+}
+
+function TopNavLink({ href, label, active }: { href: string; label: string; active: boolean }) {
+  return (
+    <Link
+      href={href}
+      className={`text-sm font-medium transition ${active ? 'text-indigo-600' : 'text-slate-700 hover:text-slate-950'}`}
+    >
+      <span>{label}</span>
+      <span className={`mt-1 block h-0.5 rounded-full transition ${active ? 'w-full bg-indigo-600' : 'w-0 bg-transparent group-hover:w-full'}`} />
     </Link>
   );
 }

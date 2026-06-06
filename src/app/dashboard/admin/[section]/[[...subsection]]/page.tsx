@@ -2,11 +2,12 @@
 
 import { FormEvent, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { ArrowRight, FolderKanban, Plus, Save } from 'lucide-react';
+import { AiCourseStudio } from '@/components/AiCourseStudio';
 import { DashboardLayout } from '@/components/DashboardLayout';
 import { useToast } from '@/contexts/ToastContext';
-import { getAdminSection, getAdminSubpage } from '@/lib/admin';
+import { getAdminSection, getAdminSectionLandingHref, getAdminSubpage } from '@/lib/admin';
 import {
   approveAdminPayout,
   approveCourse,
@@ -72,10 +73,13 @@ type Row = {
 export default function AdminSectionPage() {
   useProtectedPage(['ADMIN']);
   const params = useParams<{ section: string; subsection?: string[] }>();
+  const router = useRouter();
   const { addToast } = useToast();
   const section = getAdminSection(params.section);
   const subsectionSlug = params.subsection?.[0];
   const subsection = subsectionSlug ? getAdminSubpage(section?.slug, subsectionSlug) : null;
+  const landingHref = getAdminSectionLandingHref(section?.slug);
+  const shouldRedirectToLanding = Boolean(section && section.slug !== 'ai-course-builder' && section.subpages.length > 0 && !subsectionSlug);
 
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
@@ -127,12 +131,15 @@ export default function AdminSectionPage() {
 
   const activeTitle = subsection ? subsection.title : section.title;
   const activeDescription = subsection ? subsection.description : section.description;
-  const operationalView = subsection || section.subpages.length === 0;
+  const operationalView = subsection || section.subpages.length === 0 || section.slug === 'ai-course-builder';
 
   useEffect(() => {
     let cancelled = false;
 
     async function load() {
+      if (shouldRedirectToLanding) {
+        return;
+      }
       setLoading(true);
       try {
         const nextRows = await loadSectionRows(section.slug, subsectionSlug);
@@ -156,12 +163,15 @@ export default function AdminSectionPage() {
     return () => {
       cancelled = true;
     };
-  }, [addToast, section.slug, subsectionSlug]);
+  }, [addToast, section.slug, subsectionSlug, shouldRedirectToLanding]);
 
   useEffect(() => {
     let cancelled = false;
 
     async function loadSupportingState() {
+      if (shouldRedirectToLanding) {
+        return;
+      }
       if (section.slug === 'analytics') {
         setAnalyticsLoading(true);
         try {
@@ -271,7 +281,13 @@ export default function AdminSectionPage() {
     return () => {
       cancelled = true;
     };
-  }, [addToast, section.slug, subsectionSlug]);
+  }, [addToast, section.slug, subsectionSlug, shouldRedirectToLanding]);
+
+  useEffect(() => {
+    if (shouldRedirectToLanding) {
+      router.replace(landingHref);
+    }
+  }, [landingHref, router, shouldRedirectToLanding]);
 
   function hydrateDrafts(nextRows: Row[], sectionSlug: string) {
     if (sectionSlug === 'settings') {
@@ -637,6 +653,16 @@ export default function AdminSectionPage() {
     }
   }
 
+  if (shouldRedirectToLanding) {
+    return (
+      <DashboardLayout role="admin">
+        <div className="clay p-8 text-lg font-medium text-[var(--color-text-main)]/75">
+          Opening {section?.title}...
+        </div>
+      </DashboardLayout>
+    );
+  }
+
   return (
     <DashboardLayout role="admin">
       <div className="mb-10">
@@ -647,6 +673,12 @@ export default function AdminSectionPage() {
         <h1 className="mt-6 text-4xl font-display font-black text-[var(--color-text-heading)]">{activeTitle}</h1>
         <p className="mt-3 max-w-3xl text-base font-medium leading-relaxed text-[var(--color-text-main)]/70">{activeDescription}</p>
       </div>
+
+      {section.slug === 'ai-course-builder' ? (
+        <div className="mb-8">
+          <AiCourseStudio role="admin" />
+        </div>
+      ) : null}
 
       {operationalView ? (
         <div className="space-y-8">

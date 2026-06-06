@@ -1,13 +1,14 @@
 'use client';
 
 import { FormEvent, Suspense, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Layout } from '@/components/Layout';
 import { CourseCard } from '@/components/CourseCard';
 import { SkeletonCourseCard } from '@/components/SkeletonCourseCard';
-import { getCategories, getCourses } from '@/lib/api';
-import { Category, Course } from '@/types';
-import { ChevronDown, Filter, Search, Sparkles, SlidersHorizontal } from 'lucide-react';
+import { getCourses } from '@/lib/api';
+import { Course } from '@/types';
+import { Bell, Search } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function CourseListing() {
   return (
@@ -20,13 +21,14 @@ export default function CourseListing() {
 function CourseListingInner() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
   const [courses, setCourses] = useState<Course[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
   const [searchQuery, setSearchQuery] = useState(searchParams.get('q') || '');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(searchParams.get('category'));
   const [selectedLevel, setSelectedLevel] = useState<string | null>(searchParams.get('level'));
   const [sortBy, setSortBy] = useState('popular');
+  const [heroSlide, setHeroSlide] = useState(0);
 
   useEffect(() => {
     setSearchQuery(searchParams.get('q') || '');
@@ -42,14 +44,21 @@ function CourseListingInner() {
         category: searchParams.get('category') || undefined,
         level: searchParams.get('level') || undefined,
       }),
-      getCategories(),
     ])
-      .then(([nextCourses, nextCategories]) => {
+      .then(([nextCourses]) => {
         setCourses(nextCourses);
-        setCategories(nextCategories);
       })
       .finally(() => setIsLoading(false));
   }, [searchParams]);
+
+  useEffect(() => {
+    const slides = 3;
+    const timer = window.setInterval(() => {
+      setHeroSlide((current) => (current + 1) % slides);
+    }, 4500);
+
+    return () => window.clearInterval(timer);
+  }, []);
 
   const handleSearchSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -75,135 +84,217 @@ function CourseListingInner() {
     return nextCourses;
   }, [courses, sortBy]);
 
+  const filteredCourses = useMemo(() => {
+    let nextCourses = [...sortedCourses];
+
+    if (selectedCategory) {
+      nextCourses = nextCourses.filter((course) => course.categorySlug === selectedCategory);
+    }
+
+    if (selectedLevel) {
+      nextCourses = nextCourses.filter((course) => course.level === selectedLevel);
+    }
+
+    if (searchQuery.trim()) {
+      const query = searchQuery.trim().toLowerCase();
+      nextCourses = nextCourses.filter((course) =>
+        [course.title, course.description, course.summary, course.category, course.level]
+          .filter(Boolean)
+          .some((value) => String(value).toLowerCase().includes(query)),
+      );
+    }
+
+    return nextCourses;
+  }, [searchQuery, selectedCategory, selectedLevel, sortedCourses]);
+
+  const visibleCourses = useMemo(() => {
+    return filteredCourses;
+  }, [filteredCourses]);
+
   return (
-    <Layout>
-      <div className="mx-4 md:mx-8 mb-4">
-        <div className="glass-dark bg-brand-950/80 p-16 md:p-24 text-white text-center rounded-[3rem] mt-6 relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-64 h-64 bg-brand-500 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob"></div>
-          <div className="max-w-7xl mx-auto px-6 relative z-10">
-            <h1 className="text-5xl md:text-6xl font-display font-black mb-6 drop-shadow-md text-white">Browse Our Catalog</h1>
-            <p className="text-brand-100/80 max-w-2xl mx-auto font-medium text-lg">Explore live courses, structured modules, and real enrollment-ready checkout flows.</p>
+    <div className="min-h-screen bg-[#f6fafe] text-slate-900">
+      <nav className="sticky top-0 z-50 w-full border-b border-slate-200 bg-white/95 backdrop-blur">
+        <div className="mx-auto flex h-14 max-w-[1560px] items-center justify-between px-4 md:px-6">
+          <div className="flex items-center gap-6 md:gap-10">
+            <Link href="/" className="text-lg font-black tracking-tight text-slate-900 md:text-xl">
+              CourseForge
+            </Link>
+            <div className="hidden items-center gap-6 md:flex">
+              <Link href="/courses" className="border-b-2 border-blue-600 py-3 text-sm font-semibold text-blue-700">
+                Catalog
+              </Link>
+              <Link href="/dashboard" className="py-3 text-sm font-medium text-slate-500 hover:text-slate-900">
+                Dashboard
+              </Link>
+            </div>
           </div>
-        </div>
-      </div>
 
-      <div className="mx-auto flex w-full max-w-[1560px] flex-col gap-8 px-4 py-8 md:px-6 xl:flex-row xl:items-start xl:gap-8">
-        <div className="w-full shrink-0 xl:w-[300px]">
-          <div className="sticky top-32 overflow-hidden rounded-[2rem] border border-white/60 bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(246,249,255,0.94)_100%)] p-6 pb-8 shadow-[0_18px_45px_rgba(84,107,153,0.14)]">
-            <div className="absolute right-[-40px] top-[-30px] h-28 w-28 rounded-full bg-brand-500/10 blur-2xl" />
-            <div className="relative mb-6 border-b border-[var(--color-text-heading)]/8 pb-5">
-              <div className="inline-flex items-center gap-2 rounded-full bg-brand-500/10 px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.18em] text-brand-600">
-                <Sparkles className="h-3.5 w-3.5" /> Refine Results
-              </div>
-              <div className="mt-4 flex items-center gap-2 text-xl font-black text-[var(--color-text-heading)]">
-                <Filter className="h-5 w-5" /> Premium Filters
-              </div>
-              <p className="mt-2 text-sm font-medium leading-6 text-[var(--color-text-main)]/65">
-                Narrow the catalog to the right difficulty, topic, and learning pace.
-              </p>
-            </div>
-
-            <div className="mb-8">
-              <h3 className="mb-4 flex items-center justify-between text-base font-black text-[var(--color-text-heading)]">
-                Category <ChevronDown className="w-4 h-4 text-[var(--color-text-main)]/50" />
-              </h3>
-              <div className="space-y-3">
-                {categories.map((category) => (
-                  <label key={category.id} className={`flex cursor-pointer items-center gap-4 rounded-2xl border px-4 py-3 transition-all ${
-                    selectedCategory === category.slug
-                      ? 'border-brand-500/40 bg-brand-500/10'
-                      : 'border-[var(--glass-border)] bg-white/55 hover:bg-white'
-                  }`}>
-                    <input
-                      type="checkbox"
-                      checked={selectedCategory === category.slug}
-                      onChange={() => setSelectedCategory((current) => (current === category.slug ? null : category.slug))}
-                      className="w-5 h-5 rounded-lg border-2 border-[var(--color-text-main)]/20 text-brand-500 focus:ring-brand-500/30 transition-all cursor-pointer"
-                    />
-                    <div className="flex flex-1 items-center justify-between gap-3">
-                      <span className="text-sm font-bold text-[var(--color-text-main)]/78">{category.name}</span>
-                      <span className="rounded-full bg-[var(--glass-bg)] px-2.5 py-1 text-[11px] font-black text-[var(--color-text-main)]/55">
-                        {category.coursesCount}
-                      </span>
-                    </div>
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            <div className="mb-4">
-              <h3 className="mb-4 flex items-center justify-between text-base font-black text-[var(--color-text-heading)]">
-                Level <ChevronDown className="w-4 h-4 text-[var(--color-text-main)]/50" />
-              </h3>
-              <div className="space-y-3">
-                {['Beginner', 'Intermediate', 'Advanced'].map((level) => (
-                  <label key={level} className={`flex cursor-pointer items-center gap-4 rounded-2xl border px-4 py-3 transition-all ${
-                    selectedLevel === level
-                      ? 'border-brand-500/40 bg-brand-500/10'
-                      : 'border-[var(--glass-border)] bg-white/55 hover:bg-white'
-                  }`}>
-                    <input
-                      type="checkbox"
-                      checked={selectedLevel === level}
-                      onChange={() => setSelectedLevel((current) => (current === level ? null : level))}
-                      className="w-5 h-5 rounded-lg border-2 border-[var(--color-text-main)]/20 text-brand-500 focus:ring-brand-500/30 transition-all cursor-pointer"
-                    />
-                    <span className="text-sm font-bold text-[var(--color-text-main)]/78">{level}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            <button onClick={handleSearchSubmit} className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-brand-500 py-3.5 font-black text-white shadow-[0_14px_30px_rgba(var(--brand-500-rgb,59,130,246),0.22)]">
-              <SlidersHorizontal className="h-4 w-4" /> Apply Filters
-            </button>
-          </div>
-        </div>
-
-        <div className="min-w-0 flex-1">
-          <div className="mb-10 flex flex-col gap-6 rounded-[2rem] border border-white/60 bg-[linear-gradient(180deg,rgba(255,255,255,0.98)_0%,rgba(246,249,255,0.94)_100%)] p-5 shadow-[0_18px_45px_rgba(84,107,153,0.14)] sm:flex-row sm:items-center sm:justify-between">
-            <div className="px-2">
-              <div className="text-[11px] font-black uppercase tracking-[0.2em] text-brand-600">Curated Catalog</div>
-              <h2 className="mt-2 text-3xl font-display font-black text-[var(--color-text-heading)]">{isLoading ? '...' : sortedCourses.length} Courses</h2>
-            </div>
-
-            <div className="flex items-center gap-4 w-full sm:w-auto">
-              <form onSubmit={handleSearchSubmit} className="relative flex-1 sm:w-64">
-                <Search className="w-5 h-5 text-[var(--color-text-main)]/50 absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <div className="flex items-center gap-4 md:gap-6">
+            <form onSubmit={handleSearchSubmit} className="hidden w-[260px] items-center md:flex">
+              <div className="flex w-full items-center rounded-full border border-slate-300 bg-[#f6f7fb] px-4 py-2 shadow-inner">
+                <Search className="h-4 w-4 text-slate-400" />
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search courses..."
-                  className="clay-input !w-full !pl-11 !pr-4 !py-3"
+                  placeholder="What do you want to learn?"
+                  className="w-full bg-transparent pl-3 text-sm outline-none placeholder:text-slate-400"
                 />
-              </form>
-              <div className="flex items-center gap-3">
-                <span className="text-sm font-bold text-[var(--color-text-main)]/60 hidden md:block">Sort:</span>
-                <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} className="clay-input !py-3 font-bold !px-4 cursor-pointer bg-white/75">
-                  <option value="popular">Most Popular</option>
-                  <option value="highest_rated">Highest Rated</option>
-                  <option value="newest">Newest</option>
-                </select>
               </div>
+            </form>
+            <button aria-label="notifications" className="hidden text-slate-400 md:block">
+              <Bell className="h-4.5 w-4.5" />
+            </button>
+            <div className="flex items-center gap-2 border-l border-slate-200 pl-4">
+              <img
+                alt={user?.name || 'User'}
+                src={user?.avatar || 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=120&h=120&fit=crop&crop=face'}
+                className="h-8 w-8 rounded-full object-cover"
+              />
+              <span className="hidden text-sm font-medium text-slate-700 sm:block">{user?.name || 'John Doe'}</span>
             </div>
           </div>
+        </div>
+      </nav>
 
+      <main className="mx-auto max-w-[1560px] px-4 pb-24 pt-6 md:px-6">
+        <section className="mb-10">
+          <div className="relative h-[420px] overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
+            <div
+              className="flex h-full w-full transition-transform duration-700 ease-out"
+              style={{ transform: `translateX(-${heroSlide * 100}%)` }}
+            >
+              {[
+                {
+                  image: 'https://images.unsplash.com/photo-1531545514256-b1400bc00f31?q=80&w=1074&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
+                  title: 'Cloud Architecture',
+                  text: 'Design deployment systems with clarity, resilience, and production-grade delivery patterns.',
+                },
+                {
+                  image: 'https://images.unsplash.com/photo-1486312338219-ce68d2c6f44d?q=80&w=1172&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
+                  title: 'AI Engineering',
+                  text: 'Build practical AI workflows, LLM applications, and intelligent products that ship.',
+                },
+                {
+                  image: 'https://images.unsplash.com/photo-1605379399642-870262d3d051?q=80&w=1206&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
+                  title: 'Modern Product Teams',
+                  text: 'Learn the systems, collaboration, and delivery cadence behind strong engineering organizations.',
+                },
+              ].map((slide) => (
+                <div key={slide.title} className="relative h-full min-w-full overflow-hidden">
+                  <img src={slide.image} alt={slide.title} className="h-full w-full object-cover" />
+                  <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/35 to-black/10" />
+                  <div className="absolute inset-0 flex items-end p-6 md:p-10">
+                    <div className="max-w-xl text-white">
+                      <div className="mb-3 text-xs font-semibold uppercase tracking-[0.28em] text-white/70">
+                        Featured path
+                      </div>
+                      <h3 className="text-3xl font-semibold tracking-tight md:text-5xl">{slide.title}</h3>
+                      <p className="mt-4 max-w-lg text-sm leading-7 text-white/80 md:text-base">
+                        {slide.text}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="absolute bottom-5 left-1/2 z-10 flex -translate-x-1/2 gap-2">
+              {[0, 1, 2].map((index) => (
+                <button
+                  key={index}
+                  type="button"
+                  onClick={() => setHeroSlide(index)}
+                  className={`h-2.5 rounded-full transition-all ${
+                    heroSlide === index ? 'w-10 bg-white' : 'w-2.5 bg-white/50'
+                  }`}
+                  aria-label={`Go to slide ${index + 1}`}
+                />
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <div className="flex items-center justify-end border-y border-slate-200 py-4 text-sm text-slate-600">
+          <label className="flex items-center gap-3">
+            <span className="font-medium">Sort by:</span>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-900 shadow-sm outline-none"
+            >
+              <option value="popular">Most Popular</option>
+              <option value="highest_rated">Highest Rated</option>
+              <option value="newest">Newest</option>
+            </select>
+          </label>
+        </div>
+
+        <div className="space-y-24 py-12">
           {isLoading ? (
-            <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-              {[1, 2, 3, 4, 5, 6].map((i) => <SkeletonCourseCard key={i} index={i} />)}
+            <div className="space-y-24">
+              {[1, 2, 3].map((sectionIndex) => (
+                <section key={sectionIndex} className="space-y-4">
+                  <div>
+                    <div className="h-8 w-44 rounded bg-slate-200/70" />
+                    <div className="mt-2 h-4 w-60 rounded bg-slate-200/60" />
+                  </div>
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+                    {[1, 2, 3, 4].map((i) => (
+                      <SkeletonCourseCard key={`${sectionIndex}-${i}`} index={i} />
+                    ))}
+                  </div>
+                </section>
+              ))}
             </div>
-          ) : sortedCourses.length > 0 ? (
-            <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-              {sortedCourses.map((course, i) => <CourseCard key={course.id} course={course} index={i} />)}
-            </div>
+          ) : visibleCourses.length > 0 ? (
+            <>
+              {(() => {
+                const trending = [...visibleCourses].sort((a, b) => b.students - a.students).slice(0, 4);
+                const trendingIds = new Set(trending.map((course) => course.id));
+                const curated = visibleCourses.filter((course) => !trendingIds.has(course.id)).slice(0, 4);
+                const curatedIds = new Set([...trendingIds, ...curated.map((course) => course.id)]);
+                const newReleases = [...visibleCourses].sort((a, b) => b.id.localeCompare(a.id)).filter((course) => !curatedIds.has(course.id)).slice(0, 4);
+
+                const sections = [
+                  {
+                    title: 'Trending Now',
+                    subtitle: 'Most active courses this week.',
+                    courses: trending,
+                  },
+                  {
+                    title: 'Curated Learning Paths',
+                    subtitle: 'Sequenced collections to take you from zero to expert.',
+                    courses: curated.length > 0 ? curated : visibleCourses.slice(0, 4),
+                  },
+                  {
+                    title: 'New Releases',
+                    subtitle: 'Freshly minted content from industry experts.',
+                    courses: newReleases.length > 0 ? newReleases : [...visibleCourses].sort((a, b) => b.id.localeCompare(a.id)).slice(0, 4),
+                  },
+                ];
+
+                return sections.map((section) => (
+                  <section key={section.title} className="space-y-4">
+                    <div>
+                      <h3 className="text-2xl font-semibold tracking-tight text-slate-900">{section.title}</h3>
+                      <p className="mt-1 text-sm text-slate-500">{section.subtitle}</p>
+                    </div>
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+                      {section.courses.map((course, i) => (
+                        <CourseCard key={course.id} course={course} index={i} />
+                      ))}
+                    </div>
+                  </section>
+                ));
+              })()}
+            </>
           ) : (
-            <div className="text-center py-24 clay flex flex-col items-center">
-              <div className="w-20 h-20 bg-white shadow-inner rounded-[18px] flex items-center justify-center mb-6">
-                <Search className="w-10 h-10 text-brand-300" />
+            <div className="py-24 text-center">
+              <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-[18px] bg-white shadow-inner">
+                <Search className="h-10 w-10 text-slate-300" />
               </div>
-              <h3 className="text-2xl font-display font-black text-[var(--color-text-heading)] mb-3">No courses found</h3>
-              <p className="text-[var(--color-text-main)]/60 font-medium">Try adjusting your search or filters to find what you're looking for.</p>
+              <h3 className="mb-3 text-2xl font-semibold tracking-tight text-slate-900">No courses found</h3>
+              <p className="font-medium text-slate-500">Try adjusting your search to find what you&apos;re looking for.</p>
               <button
                 onClick={() => {
                   setSearchQuery('');
@@ -211,14 +302,57 @@ function CourseListingInner() {
                   setSelectedLevel(null);
                   router.replace('/courses');
                 }}
-                className="mt-8 clay-btn px-8 py-3 font-bold"
+                className="mt-8 rounded-full border border-slate-200 bg-white px-8 py-3 font-semibold text-slate-900 shadow-sm"
               >
                 Clear all filters
               </button>
             </div>
           )}
         </div>
-      </div>
-    </Layout>
+      </main>
+
+      <footer className="border-t border-slate-200 bg-[#eef1f5] py-12">
+        <div className="mx-auto grid max-w-[1560px] grid-cols-2 gap-8 px-4 md:grid-cols-4 md:px-6">
+          <div className="col-span-2 space-y-5 md:col-span-1">
+            <div className="text-xl font-black tracking-tight text-slate-900">CourseForge</div>
+            <p className="max-w-xs text-sm leading-6 text-slate-500">
+              World-class learning for anyone, anywhere. Build your skills with live courses, structured projects, and certificates.
+            </p>
+            <div className="flex gap-3 text-slate-500">
+              <span className="rounded-full border border-slate-200 bg-white p-2">↗</span>
+              <span className="rounded-full border border-slate-200 bg-white p-2">✉</span>
+              <span className="rounded-full border border-slate-200 bg-white p-2">◎</span>
+            </div>
+          </div>
+          <div>
+            <h4 className="mb-4 text-xs font-semibold uppercase tracking-[0.22em] text-slate-700">Platform</h4>
+            <div className="space-y-2 text-sm text-slate-500">
+              <div>Browse Catalog</div>
+              <div>Dashboard</div>
+              <div>Settings</div>
+            </div>
+          </div>
+          <div>
+            <h4 className="mb-4 text-xs font-semibold uppercase tracking-[0.22em] text-slate-700">Roles</h4>
+            <div className="space-y-2 text-sm text-slate-500">
+              <div>Students</div>
+              <div>Instructors</div>
+              <div>Platform Admins</div>
+            </div>
+          </div>
+          <div>
+            <h4 className="mb-4 text-xs font-semibold uppercase tracking-[0.22em] text-slate-700">Account</h4>
+            <div className="space-y-2 text-sm text-slate-500">
+              <div>Sign Out</div>
+              <div>Help Center</div>
+              <div>Privacy Policy</div>
+            </div>
+          </div>
+        </div>
+        <div className="mx-auto mt-10 max-w-[1560px] border-t border-slate-200 px-4 pt-8 text-center text-sm text-slate-500 md:px-6">
+          © 2026 CourseForge. All rights reserved.
+        </div>
+      </footer>
+    </div>
   );
 }

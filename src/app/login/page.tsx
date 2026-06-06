@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { motion } from 'motion/react';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/contexts/ToastContext';
 import { getDashboardPath, writeAdminOtpChallenge } from '@/lib/auth';
@@ -16,6 +16,7 @@ export default function Login() {
   const { addToast } = useToast();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -76,7 +77,23 @@ export default function Login() {
             </div>
             <div>
               <label className="block text-sm font-bold text-[var(--color-text-heading)] mb-2 pl-2">Password</label>
-              <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" placeholder="••••••••" className="w-full clay-input !py-4 tracking-widest" />
+              <div className="relative">
+                <input
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="••••••••"
+                  className="w-full clay-input !py-4 tracking-widest pr-12"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((current) => !current)}
+                  className="absolute inset-y-0 right-0 flex items-center justify-center px-4 text-[var(--color-text-main)]/50 hover:text-[var(--color-text-heading)] transition-colors"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
+              </div>
             </div>
             <button type="submit" disabled={submitting} className="w-full clay-btn py-4 text-lg font-black mt-8 disabled:opacity-60">
               {submitting ? 'Signing In...' : 'Sign In'}
