@@ -14,11 +14,12 @@ import {
   Settings,
   Shield,
   UserCircle2,
+  Briefcase,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useEffect, useState, type ReactNode } from 'react';
 
-type SidebarKey = 'progress' | 'settings' | 'payments' | 'certificates' | 'support';
+type SidebarKey = 'progress' | 'settings' | 'payments' | 'certificates' | 'support' | 'careers';
 
 const SIDEBAR_ITEMS: Array<{
   key: SidebarKey;
@@ -29,6 +30,7 @@ const SIDEBAR_ITEMS: Array<{
   { key: 'progress', label: 'Progress', href: '/dashboard/student/progress', icon: UserCircle2 },
   { key: 'payments', label: 'Payments & Billing', href: '/dashboard/student/payments', icon: CreditCard },
   { key: 'certificates', label: 'Certificates', href: '/dashboard/student/certificates', icon: Shield },
+  { key: 'careers', label: 'Careers & Community', href: '/dashboard/student/careers', icon: Briefcase },
   { key: 'support', label: 'Support', href: '/dashboard/student/support', icon: LifeBuoy },
   { key: 'settings', label: 'Account Settings', href: '/settings', icon: Settings },
 ];

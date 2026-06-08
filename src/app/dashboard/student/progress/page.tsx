@@ -6,6 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import { ArrowRight, BookOpen, CheckCircle2, Clock3, Trophy } from 'lucide-react';
 import { DashboardLayout } from '@/components/DashboardLayout';
 import { getMyCertificates, getMyEnrollments } from '@/lib/api';
+import { readSession } from '@/lib/auth';
 import { useToast } from '@/contexts/ToastContext';
 import { useProtectedPage } from '@/lib/use-protected-page';
 import { Certificate, Enrollment } from '@/types';
@@ -15,21 +16,27 @@ type ProgressFilter = 'ALL' | 'ACTIVE' | 'COMPLETED';
 export default function StudentProgress() {
   const searchParams = useSearchParams();
   const { addToast } = useToast();
-  const { user, loading: authLoading } = useProtectedPage(['STUDENT']);
+  const { loading: authLoading } = useProtectedPage(['STUDENT']);
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
   const [certificates, setCertificates] = useState<Certificate[]>([]);
   const [filter, setFilter] = useState<ProgressFilter>('ALL');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!user) return;
+    const session = readSession();
+    if (!session?.accessToken) {
+      setLoading(false);
+      return;
+    }
+
+    // PERF: start the student data fetch immediately instead of waiting for auth state to settle.
     Promise.all([getMyEnrollments(), getMyCertificates()])
       .then(([nextEnrollments, nextCertificates]) => {
         setEnrollments(nextEnrollments);
         setCertificates(nextCertificates);
       })
       .finally(() => setLoading(false));
-  }, [user]);
+  }, []);
 
   useEffect(() => {
     if (searchParams.get('checkout') === 'success') {

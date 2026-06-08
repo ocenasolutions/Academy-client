@@ -14,6 +14,8 @@ import {
 } from 'lucide-react';
 import { StudentReferenceShell } from '@/components/StudentReferenceShell';
 import { getMyPayments } from '@/lib/api';
+import { useAuth } from '@/contexts/AuthContext';
+import { readSession } from '@/lib/auth';
 import { useProtectedPage } from '@/lib/use-protected-page';
 import { PaymentRecord } from '@/types';
 
@@ -57,17 +59,24 @@ function statusTone(status: string) {
 }
 
 export default function StudentPaymentsPage() {
-  const { user } = useProtectedPage(['STUDENT']);
+  useProtectedPage(['STUDENT']);
+  const { user } = useAuth();
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!user) return;
+    const session = readSession();
+    if (!session?.accessToken) {
+      setLoading(false);
+      return;
+    }
+
+    // PERF: start the billing fetch immediately instead of waiting for auth state to resolve.
     getMyPayments()
       .then(setPayments)
       .catch(() => setPayments([]))
       .finally(() => setLoading(false));
-  }, [user]);
+  }, []);
 
   const summary = useMemo(() => {
     const successful = payments.filter((payment) => /SUCC|PAID|COMPLETE/i.test(payment.status));

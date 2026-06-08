@@ -6,12 +6,13 @@ import { BookOpen, DollarSign, Megaphone, PlusCircle, Save, TrendingUp, Users } 
 import { DashboardLayout } from '@/components/DashboardLayout';
 import { AiCourseStudio } from '@/components/AiCourseStudio';
 import { createCourseAnnouncement, getCategories, getInstructorAnalytics, getInstructorWorkspace, gradeAssignmentSubmission, updateCourseCurriculum } from '@/lib/api';
+import { readSession } from '@/lib/auth';
 import { useProtectedPage } from '@/lib/use-protected-page';
 import { InstructorAnalytics } from '@/types';
 import { useToast } from '@/contexts/ToastContext';
 
 export default function InstructorDashboard() {
-  const { user } = useProtectedPage(['INSTRUCTOR']);
+  useProtectedPage(['INSTRUCTOR']);
   const { addToast } = useToast();
   const [analytics, setAnalytics] = useState<InstructorAnalytics | null>(null);
   const [workspace, setWorkspace] = useState<any[]>([]);
@@ -38,9 +39,14 @@ export default function InstructorDashboard() {
   }
 
   useEffect(() => {
-    if (!user) return;
+    const session = readSession();
+    if (!session?.accessToken) {
+      return;
+    }
+
+    // PERF: kick off instructor dashboard data loading immediately on mount.
     load();
-  }, [user]);
+  }, []);
 
   const chartData = useMemo(() => {
     return (analytics?.courses ?? []).map((course) => ({

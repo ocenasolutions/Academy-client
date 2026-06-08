@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { BarChart, Bar, Line, LineChart, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { BookOpen, Bot, DollarSign, ShieldAlert, TrendingUp, UserCheck, Users } from 'lucide-react';
 import { DashboardLayout } from '@/components/DashboardLayout';
+import { formatINRFromPaise } from '@/lib/currency';
 import { getPlatformAnalytics } from '@/lib/api';
 import { useProtectedPage } from '@/lib/use-protected-page';
 import { PlatformAnalytics } from '@/types';
@@ -50,7 +51,7 @@ export default function AdminDashboard() {
         <MetricCard icon={Users} label="Total Students" value={analytics?.totalStudents} tone="brand" />
         <MetricCard icon={UserCheck} label="Total Instructors" value={analytics?.totalInstructors} tone="indigo" />
         <MetricCard icon={BookOpen} label="Total Courses" value={analytics?.totalCourses} tone="purple" />
-        <MetricCard icon={DollarSign} label="Total Revenue" value={analytics ? `$${(analytics.totalRevenueCents / 100).toFixed(2)}` : '...'} tone="emerald" />
+        <MetricCard icon={DollarSign} label="Total Revenue" value={analytics ? formatINRFromPaise(analytics.totalRevenueCents) : '...'} tone="emerald" />
       </div>
 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-4 mb-10">
@@ -130,7 +131,7 @@ export default function AdminDashboard() {
           <div className="space-y-4">
             {(analytics?.recentPayments ?? []).map((payment) => (
               <div key={payment.id} className="p-4 bg-[var(--glass-bg)] rounded-2xl border border-[var(--glass-border)]">
-                <div className="font-black text-[var(--color-text-heading)] mb-1">${(payment.amountCents / 100).toFixed(2)} • {payment.provider}</div>
+                <div className="font-black text-[var(--color-text-heading)] mb-1">{formatINRFromPaise(payment.amountCents)} • {payment.provider}</div>
                 <div className="text-xs font-bold text-[var(--color-text-main)]/60">
                   {payment.order?.items[0]?.course.title ?? 'Course'} • {payment.status}
                 </div>

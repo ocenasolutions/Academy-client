@@ -141,6 +141,10 @@ export default function Checkout() {
         if (!loaded || !window.Razorpay) {
           throw new Error('Razorpay checkout could not be loaded.');
         }
+        if (!result.razorpayKeyId || result.razorpayKeyId === 'undefined' || !result.razorpayKeyId.startsWith('rzp_')) {
+          // PERF: fail fast with a clear message instead of letting Razorpay request checkout-static-next/build/undefined.
+          throw new Error('Razorpay key is missing from the backend checkout response.');
+        }
 
         const checkout = new window.Razorpay({
           key: result.razorpayKeyId,

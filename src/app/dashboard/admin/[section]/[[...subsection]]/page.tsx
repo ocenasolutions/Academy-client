@@ -7,6 +7,7 @@ import { ArrowRight, FolderKanban, Plus, Save } from 'lucide-react';
 import { AiCourseStudio } from '@/components/AiCourseStudio';
 import { DashboardLayout } from '@/components/DashboardLayout';
 import { useToast } from '@/contexts/ToastContext';
+import { formatINRFromPaise } from '@/lib/currency';
 import { getAdminSection, getAdminSectionLandingHref, getAdminSubpage } from '@/lib/admin';
 import {
   approveAdminPayout,
@@ -378,12 +379,16 @@ export default function AdminSectionPage() {
     );
   }
 
+  function getCourseEditorHref(courseId: string) {
+    return `/dashboard/admin/courses/edit/${courseId}`;
+  }
+
   function updateRowMeta(sectionSlug: string, raw: any, fallback: string[]) {
     if (sectionSlug === 'courses') {
       return [
         raw.status,
         raw.category?.name || 'No category',
-        `$${((raw.priceCents ?? 0) / 100).toFixed(2)}`,
+        formatINRFromPaise(raw.priceCents ?? 0),
         `${raw._count?.enrollments ?? 0} students`,
       ];
     }
@@ -438,6 +443,8 @@ export default function AdminSectionPage() {
       } else if (action === 'approve_course') {
         await approveCourse(row.id);
         applyRowUpdateToCurrentView(row.id, (raw) => ({ ...raw, status: 'PUBLISHED' }));
+      } else if (action === 'edit_course') {
+        router.push(getCourseEditorHref(row.id));
       } else if (action === 'reject_course') {
         await rejectCourse(row.id, 'Rejected from admin panel');
         applyRowUpdateToCurrentView(row.id, (raw) => ({ ...raw, status: 'ARCHIVED' }));
@@ -888,6 +895,7 @@ export default function AdminSectionPage() {
             detail={detail}
             loading={detailLoading}
             onClose={() => setDetail(null)}
+            onEditCourse={(courseId) => router.push(getCourseEditorHref(courseId))}
           />
         </div>
       ) : (
@@ -1182,11 +1190,13 @@ function AdminDetailPanel({
   detail,
   loading,
   onClose,
+  onEditCourse,
 }: {
   sectionSlug: string;
   detail: any | null;
   loading: boolean;
   onClose: () => void;
+  onEditCourse?: (courseId: string) => void;
 }) {
   if (!detail && !loading) {
     return null;
@@ -1212,17 +1222,28 @@ function AdminDetailPanel({
           <KeyValue title="Enrollments" items={(detail.enrollments || []).map((entry: any) => [entry.course.title, `${entry.status} • ${Math.round(entry.progressPercent)}%`])} />
           <KeyValue title="Instructor Courses" items={(detail.instructorCourses || []).map((entry: any) => [entry.title, `${entry.status} • ${entry._count?.enrollments ?? 0} students`])} />
           <KeyValue title="Verification Documents" items={(detail.verificationDocs || []).map((entry: any) => [entry.documentType, `${entry.status} • ${entry.documentUrl}`])} />
-          <KeyValue title="Payments" items={(detail.payments || []).map((entry: any) => [`$${((entry.amountCents ?? 0) / 100).toFixed(2)}`, `${entry.status} • ${entry.provider}`])} />
+          <KeyValue title="Payments" items={(detail.payments || []).map((entry: any) => [formatINRFromPaise(entry.amountCents ?? 0), `${entry.status} • ${entry.provider}`])} />
           <KeyValue title="Login Activity" items={(detail.loginActivities || []).map((entry: any) => [new Date(entry.createdAt).toLocaleString(), entry.method])} />
         </div>
       ) : sectionSlug === 'courses' ? (
         <div className="space-y-6">
+          <div className="flex items-center justify-between gap-3">
+            <div className="text-xs font-black uppercase tracking-[0.2em] text-brand-600">Course detail</div>
+            {detail?.id && onEditCourse && (
+              <button
+                onClick={() => onEditCourse(detail.id)}
+                className="rounded-xl bg-brand-500 px-4 py-2 text-sm font-black text-white"
+              >
+                Edit Course
+              </button>
+            )}
+          </div>
           <KeyValue title="Course" items={[
             ['Title', detail.title],
             ['Instructor', `${detail.instructor?.firstName || ''} ${detail.instructor?.lastName || ''}`.trim()],
             ['Status', detail.status],
             ['Category', detail.category?.name || 'Unassigned'],
-            ['Price', `$${((detail.priceCents ?? 0) / 100).toFixed(2)}`],
+            ['Price', formatINRFromPaise(detail.priceCents ?? 0)],
           ]} />
           <KeyValue title="Modules" items={(detail.modules || []).map((module: any) => [module.title, `${module.lessons?.length ?? 0} lessons`])} />
           <KeyValue title="Students" items={(detail.enrollments || []).map((entry: any) => [`${entry.user.firstName} ${entry.user.lastName}`, `${entry.status} • ${Math.round(entry.progressPercent)}%`])} />
@@ -1274,7 +1295,7 @@ function AdminAnalyticsPanel({
         ];
       case 'revenue':
         return [
-          ['Total Revenue', formatCurrency(analytics.totalRevenueCents)],
+          ['Total Revenue', formatINRFromPaise(analytics.totalRevenueCents)],
           ['Recent Payments', String(analytics.recentPayments.length)],
           ['Latest Growth Month', analytics.growthSeries.at(-1)?.label || 'N/A'],
         ];
@@ -1288,7 +1309,7 @@ function AdminAnalyticsPanel({
         return [
           ['Users', String(analytics.users)],
           ['Courses', String(analytics.courses)],
-          ['Revenue', formatCurrency(analytics.revenueCents)],
+          ['Revenue', formatINRFromPaise(analytics.revenueCents)],
         ];
     }
   })();
@@ -1309,13 +1330,13 @@ function AdminAnalyticsPanel({
           title="Growth"
           items={analytics.growthSeries.map((entry) => [
             entry.label,
-            `${entry.users} users • ${entry.enrollments} enrollments • ${formatCurrency(entry.revenueCents)}`,
+            `${entry.users} users • ${entry.enrollments} enrollments • ${formatINRFromPaise(entry.revenueCents)}`,
           ])}
         />
         <KeyValue
           title="Recent Payments"
           items={analytics.recentPayments.map((payment) => [
-            `${formatCurrency(payment.amountCents)} • ${payment.provider}`,
+            `${formatINRFromPaise(payment.amountCents)} • ${payment.provider}`,
             `${payment.status} • ${payment.order?.items.map((item) => item.course.title).join(', ') || 'No courses'}`,
           ])}
         />
@@ -1414,10 +1435,6 @@ function KeyValue({ title, items }: { title: string; items: Array<[string, strin
       </div>
     </div>
   );
-}
-
-function formatCurrency(amountCents: number) {
-  return `$${((amountCents ?? 0) / 100).toFixed(2)}`;
 }
 
 function formatAdminStatus(status?: string) {
@@ -1547,11 +1564,12 @@ async function loadSectionRows(sectionSlug: string, subsectionSlug?: string): Pr
       meta: [
         formatAdminStatus(course.status),
         course.category?.name || 'No category',
-        `$${((course.priceCents ?? 0) / 100).toFixed(2)}`,
+        formatINRFromPaise(course.priceCents ?? 0),
         `${course._count?.enrollments ?? 0} students`,
       ],
       actions: [
         ...(course.status !== 'PUBLISHED' ? [{ id: 'approve_course', label: course.status === 'IN_REVIEW' ? 'Approve' : 'Publish', tone: 'success' as const }] : []),
+        { id: 'edit_course', label: 'Edit', tone: 'neutral' as const },
         ...(course.status !== 'ARCHIVED' ? [{ id: 'reject_course', label: course.status === 'PUBLISHED' ? 'Archive' : 'Reject', tone: 'danger' as const }] : []),
         { id: 'feature_course', label: course.isFeatured ? 'Unfeature' : 'Feature', tone: 'neutral' },
       ],
@@ -1595,7 +1613,7 @@ async function loadSectionRows(sectionSlug: string, subsectionSlug?: string): Pr
       id: payout.id,
       raw: payout,
       title: `${payout.instructor.firstName} ${payout.instructor.lastName}`,
-      description: `$${((payout.amountCents ?? 0) / 100).toFixed(2)}`,
+      description: formatINRFromPaise(payout.amountCents ?? 0),
       meta: [payout.status, new Date(payout.requestedAt).toLocaleDateString()],
       actions: [
         ...(payout.status === 'PENDING' ? [{ id: 'approve_payout', label: 'Approve', tone: 'success' as const }] : []),
@@ -1614,7 +1632,7 @@ async function loadSectionRows(sectionSlug: string, subsectionSlug?: string): Pr
       .map((payment) => ({
       id: payment.id,
       raw: payment,
-      title: `$${((payment.amountCents ?? 0) / 100).toFixed(2)} • ${payment.provider}`,
+      title: `${formatINRFromPaise(payment.amountCents ?? 0)} • ${payment.provider}`,
       description: payment.order?.items?.map((item: any) => item.course.title).join(', ') || 'Payment record',
       meta: [payment.status, payment.paidAt ? new Date(payment.paidAt).toLocaleDateString() : 'Pending'],
       actions: payment.status !== 'REFUNDED' ? [{ id: 'refund_payment', label: 'Refund', tone: 'danger' }] : [],
@@ -1666,7 +1684,7 @@ async function loadSectionRows(sectionSlug: string, subsectionSlug?: string): Pr
       raw: job,
       title: job.title,
       description: `${job.instructor.firstName} ${job.instructor.lastName}`,
-      meta: [job.status, `${job.totalTokens ?? 0} tokens`, `$${Number(job.estimatedCostUsd ?? 0).toFixed(2)}`, job.abuseFlagged ? 'Flagged' : 'Clean'],
+      meta: [job.status, `${job.totalTokens ?? 0} tokens`, `₹${Number(job.estimatedCostUsd ?? 0).toFixed(2)}`, job.abuseFlagged ? 'Flagged' : 'Clean'],
       actions: job.status === 'FAILED' ? [{ id: 'retry_ai_generation', label: 'Retry', tone: 'success' }] : [],
     }));
   }

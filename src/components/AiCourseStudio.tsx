@@ -3,6 +3,7 @@
 import { ReactNode, useEffect, useMemo, useState } from 'react';
 import { Bot, CheckCircle2, Clock3, FileText, Film, ImageIcon, Layers3, Sparkles } from 'lucide-react';
 import { useToast } from '@/contexts/ToastContext';
+import { formatINRFromPaise } from '@/lib/currency';
 import {
   applyAiCourseGenerationJob,
   generateAiCourseDraft,
@@ -44,6 +45,16 @@ const initialForm = {
   includeAssignments: true,
   includeMedia: true,
 };
+
+function rupeesToPaise(value: string | number) {
+  const parsed = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(parsed)) return 0;
+  return Math.max(0, Math.round(parsed * 100));
+}
+
+function paiseToRupees(paise: number) {
+  return (Number(paise || 0) / 100).toFixed(2);
+}
 
 export function AiCourseStudio({ role, onCourseApplied }: Props) {
   const { addToast } = useToast();
@@ -165,18 +176,21 @@ export function AiCourseStudio({ role, onCourseApplied }: Props) {
                 placeholder="Course name or topic"
                 className={inputClass}
               />
+              <p className="text-xs font-medium text-slate-500">The course title shown to learners and admins.</p>
               <textarea
                 value={form.context}
                 onChange={(e) => setForm((current) => ({ ...current, context: e.target.value }))}
                 placeholder="Platform or business context: where this course will be used, who reviews it, and what the student should see."
                 className={`${inputClass} min-h-28`}
               />
+              <p className="text-xs font-medium text-slate-500">Use this to tell AI about the business rules, review flow, and platform goals for the course.</p>
               <textarea
                 value={form.prompt}
                 onChange={(e) => setForm((current) => ({ ...current, prompt: e.target.value }))}
                 placeholder="Course brief: what students should learn, build, or achieve."
                 className={`${inputClass} min-h-36`}
               />
+              <p className="text-xs font-medium text-slate-500">Describe the actual course outcome, topic, and scope.</p>
               <div className="grid gap-4 md:grid-cols-2">
                 <input value={form.targetAudience} onChange={(e) => setForm((current) => ({ ...current, targetAudience: e.target.value }))} placeholder="Target audience" className={inputClass} />
                 <select value={form.difficulty} onChange={(e) => setForm((current) => ({ ...current, difficulty: e.target.value }))} className={inputClass}>
@@ -184,6 +198,10 @@ export function AiCourseStudio({ role, onCourseApplied }: Props) {
                   <option value="Intermediate">Intermediate</option>
                   <option value="Advanced">Advanced</option>
                 </select>
+              </div>
+              <div className="grid gap-2 md:grid-cols-2">
+                <p className="text-xs font-medium text-slate-500">Who this is for, such as students, working professionals, or founders.</p>
+                <p className="text-xs font-medium text-slate-500">How hard the course should feel for the learner.</p>
               </div>
               <div className="grid gap-4 md:grid-cols-2">
                 <input value={form.industryFocus} onChange={(e) => setForm((current) => ({ ...current, industryFocus: e.target.value }))} placeholder="Industry focus: SaaS, FinTech, EdTech..." className={inputClass} />
@@ -193,6 +211,10 @@ export function AiCourseStudio({ role, onCourseApplied }: Props) {
                   <option value="Workshop-Style">Workshop-Style</option>
                   <option value="Case-Study">Case-Study</option>
                 </select>
+              </div>
+              <div className="grid gap-2 md:grid-cols-2">
+                <p className="text-xs font-medium text-slate-500">Optional industry lens like SaaS, fintech, healthtech, or cloud.</p>
+                <p className="text-xs font-medium text-slate-500">Tells the AI whether to favor practical projects, theory, or workshop flow.</p>
               </div>
               <div className="grid gap-4 xl:grid-cols-4">
                 <FieldBlock
@@ -210,15 +232,16 @@ export function AiCourseStudio({ role, onCourseApplied }: Props) {
                   />
                 </FieldBlock>
                 <FieldBlock
-                  label="Price"
-                  helper="Store the price in cents. Example: 5000 = 50.00."
-                  value={`$${(Number(form.priceCents || 0) / 100).toFixed(2)}`}
+                  label="Price (INR)"
+                  helper="Type the rupee amount here. The backend converts it to paise automatically."
+                  value={`₹${paiseToRupees(form.priceCents)}`}
                 >
                   <input
                     type="number"
+                    step="0.01"
                     min={0}
-                    value={form.priceCents}
-                    onChange={(e) => setForm((current) => ({ ...current, priceCents: Number(e.target.value) || 0 }))}
+                    value={paiseToRupees(form.priceCents)}
+                    onChange={(e) => setForm((current) => ({ ...current, priceCents: rupeesToPaise(e.target.value) }))}
                     className={inputClass}
                   />
                 </FieldBlock>
@@ -252,13 +275,19 @@ export function AiCourseStudio({ role, onCourseApplied }: Props) {
                 </FieldBlock>
               </div>
               <div className="grid gap-4 md:grid-cols-2">
-                <input value={form.language} onChange={(e) => setForm((current) => ({ ...current, language: e.target.value }))} placeholder="Language code" className={inputClass} />
-                <select value={form.categoryId} onChange={(e) => setForm((current) => ({ ...current, categoryId: e.target.value }))} className={inputClass}>
+                <div className="space-y-2">
+                  <input value={form.language} onChange={(e) => setForm((current) => ({ ...current, language: e.target.value }))} placeholder="Language code" className={inputClass} />
+                  <p className="text-xs font-medium text-slate-500">Language code for the generated course, like `en` or `hi`.</p>
+                </div>
+                <div className="space-y-2">
+                  <select value={form.categoryId} onChange={(e) => setForm((current) => ({ ...current, categoryId: e.target.value }))} className={inputClass}>
                   <option value="">Auto category</option>
                   {categories.map((category) => (
                     <option key={category.id} value={category.id}>{category.name}</option>
                   ))}
-                </select>
+                  </select>
+                  <p className="text-xs font-medium text-slate-500">Leave blank to let AI choose the best category automatically.</p>
+                </div>
               </div>
               <textarea
                 value={form.learningObjectives}
@@ -266,12 +295,14 @@ export function AiCourseStudio({ role, onCourseApplied }: Props) {
                 placeholder="Core learning objectives, one per line"
                 className={`${inputClass} min-h-28`}
               />
+              <p className="text-xs font-medium text-slate-500">Write the exact skills or outcomes you want the learner to leave with.</p>
               <textarea
                 value={form.additionalInstructions}
                 onChange={(e) => setForm((current) => ({ ...current, additionalInstructions: e.target.value }))}
                 placeholder="Additional instructions for AI generation"
                 className={`${inputClass} min-h-24`}
               />
+              <p className="text-xs font-medium text-slate-500">Any special structure, tone, or constraints AI should follow.</p>
               <div className="grid gap-3 md:grid-cols-3">
                 <Toggle label="MCQ quizzes" checked={form.includeQuizzes} onChange={(checked) => setForm((current) => ({ ...current, includeQuizzes: checked }))} />
                 <Toggle label="Assignments" checked={form.includeAssignments} onChange={(checked) => setForm((current) => ({ ...current, includeAssignments: checked }))} />
@@ -305,7 +336,7 @@ export function AiCourseStudio({ role, onCourseApplied }: Props) {
                     <div className="mt-2 text-sm text-[var(--color-text-main)]/70">{job.result?.studentPreview.headline || job.prompt}</div>
                     <div className="mt-3 flex flex-wrap gap-2 text-xs font-black text-[var(--color-text-main)]/60">
                       <span>{job.totalTokens} tokens</span>
-                      <span>${Number(job.estimatedCostUsd ?? 0).toFixed(4)}</span>
+                      <span>₹{Number(job.estimatedCostUsd ?? 0).toFixed(4)}</span>
                       <span>{job.course ? `Linked: ${job.course.title}` : 'Draft only'}</span>
                     </div>
                   </button>

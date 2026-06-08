@@ -4,21 +4,27 @@ import { useEffect, useState } from 'react';
 import { LifeBuoy, MessageSquareText } from 'lucide-react';
 import { DashboardLayout } from '@/components/DashboardLayout';
 import { createSupportTicket, getMySupportTickets } from '@/lib/api';
+import { readSession } from '@/lib/auth';
 import { useProtectedPage } from '@/lib/use-protected-page';
 import { SupportTicket } from '@/types';
 import { useToast } from '@/contexts/ToastContext';
 
 export default function StudentSupportPage() {
-  const { user } = useProtectedPage(['STUDENT']);
+  useProtectedPage(['STUDENT']);
   const { addToast } = useToast();
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
   const [ticketForm, setTicketForm] = useState({ subject: '', description: '', category: 'GENERAL' });
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (!user) return;
+    const session = readSession();
+    if (!session?.accessToken) {
+      return;
+    }
+
+    // PERF: fetch support tickets on mount instead of waiting for the auth hook to settle.
     getMySupportTickets().then(setTickets).catch(() => setTickets([]));
-  }, [user]);
+  }, []);
 
   return (
     <DashboardLayout role="student">

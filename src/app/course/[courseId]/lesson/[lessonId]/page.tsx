@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, Award, CheckCircle2, ChevronLeft, ChevronRight, MessageSquare, Play } from 'lucide-react';
+import { ArrowLeft, Award, CheckCircle2, ChevronLeft, ChevronRight, MessageSquare, Play, ChevronDown, ChevronUp, Volume2, Pause, BookOpen, Video, HelpCircle, ClipboardList, Radio } from 'lucide-react';
 import { addLessonDiscussionComment, getEnrollmentDetails, getLessonActivity, getMyCertificates, submitAssignment, submitQuizAttempt, updateLessonProgress } from '@/lib/api';
 import { useProtectedPage } from '@/lib/use-protected-page';
 import { useToast } from '@/contexts/ToastContext';
@@ -21,6 +21,9 @@ export default function VideoLesson() {
   const [lessonActivity, setLessonActivity] = useState<any | null>(null);
   const [submittingActivity, setSubmittingActivity] = useState(false);
   const [discussionMessage, setDiscussionMessage] = useState('');
+  const [expandedModules, setExpandedModules] = useState<Record<string, boolean>>({});
+  const [isPlayingSpeech, setIsPlayingSpeech] = useState(false);
+  const [showBottomPanel, setShowBottomPanel] = useState(true);
 
   useEffect(() => {
     if (!user || !courseId) return;
@@ -56,21 +59,140 @@ export default function VideoLesson() {
   const previousLesson = currentIndex > 0 ? lessonList[currentIndex - 1] : null;
   const nextLesson = currentIndex >= 0 && currentIndex < lessonList.length - 1 ? lessonList[currentIndex + 1] : null;
 
+  // Auto-expand current lesson's module on load
+  useEffect(() => {
+    if (lessonData?.module?.id) {
+      setExpandedModules((prev) => ({
+        ...prev,
+        [lessonData.module.id]: true,
+      }));
+    }
+  }, [lessonData?.module?.id]);
+
+  // Clean up speech synthesis on unmount or lesson change
+  useEffect(() => {
+    return () => {
+      if (typeof window !== 'undefined' && window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, [lessonId]);
+
+  const toggleModule = (moduleId: string) => {
+    setExpandedModules((prev) => ({
+      ...prev,
+      [moduleId]: !prev[moduleId],
+    }));
+  };
+
+  const toggleSpeech = () => {
+    if (typeof window === 'undefined' || !window.speechSynthesis) {
+      addToast('Text-to-speech is not supported in this browser.', 'error');
+      return;
+    }
+
+    if (isPlayingSpeech) {
+      window.speechSynthesis.cancel();
+      setIsPlayingSpeech(false);
+      return;
+    }
+
+    const textToRead = `${lessonData?.lesson?.title}. ${lessonData?.lesson?.description}. ` + sections.map((s: any) => `${s.heading}. ${s.body}`).join('\n\n');
+    if (!textToRead) {
+      addToast('No reading content available to read.', 'warning');
+      return;
+    }
+
+    const utterance = new SpeechSynthesisUtterance(textToRead);
+    utterance.onend = () => {
+      setIsPlayingSpeech(false);
+    };
+    utterance.onerror = () => {
+      setIsPlayingSpeech(false);
+    };
+
+    setIsPlayingSpeech(true);
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(utterance);
+  };
+
+  const getLessonIcon = (type: string) => {
+    const normType = type?.toLowerCase();
+    switch (normType) {
+      case 'video':
+        return <Video className="w-3.5 h-3.5 text-blue-400" />;
+      case 'reading':
+        return <BookOpen className="w-3.5 h-3.5 text-amber-400" />;
+      case 'quiz':
+        return <HelpCircle className="w-3.5 h-3.5 text-purple-400" />;
+      case 'assignment':
+        return <ClipboardList className="w-3.5 h-3.5 text-rose-400" />;
+      case 'live':
+        return <Radio className="w-3.5 h-3.5 text-emerald-400" />;
+      default:
+        return <Play className="w-3.5 h-3.5 text-gray-400" />;
+    }
+  };
+
+  const lessonType = lessonData?.lesson?.type?.toLowerCase();
+  const lessonContent = lessonData?.lesson?.content as any;
+
+  const sections = useMemo(() => {
+    if (!lessonContent) return [];
+    if (Array.isArray(lessonContent?.sections)) {
+      return lessonContent.sections;
+    }
+    if (Array.isArray(lessonContent?.body)) {
+      return lessonContent.body.map((item: any, idx: number) => {
+        if (typeof item === 'string') {
+          const parts = item.split(':');
+          const heading = parts[0] ? parts[0].trim() : `Section ${idx + 1}`;
+          const body = parts.slice(1).join(':').trim() || item;
+          return { heading, body };
+        }
+        return { heading: item.heading || `Section ${idx + 1}`, body: item.body || '' };
+      });
+    }
+    if (typeof lessonContent?.body === 'string') {
+      return [{ heading: 'Overview', body: lessonContent.body }];
+    }
+    return [];
+  }, [lessonContent]);
+
+  const quizQuestions = useMemo(() => {
+    const rawQuestions = Array.isArray(lessonActivity?.quiz?.questions)
+      ? lessonActivity.quiz.questions
+      : Array.isArray(lessonContent?.questions)
+        ? lessonContent.questions
+        : lessonContent?.question
+          ? [{
+              prompt: lessonContent.question,
+              options: lessonContent.options ?? [],
+              correctIndex: lessonContent.correctIndex,
+              explanation: lessonContent.explanation,
+            }]
+          : [];
+
+    return rawQuestions.map((q: any) => {
+      const prompt = q.prompt || q.question || '';
+      const options = Array.isArray(q.options) ? q.options : [];
+      let correctIndex = q.correctIndex;
+      if (correctIndex === undefined && q.answer !== undefined) {
+        const idx = options.findIndex((opt: string) => opt === q.answer);
+        correctIndex = idx >= 0 ? idx : 0;
+      }
+      return {
+        prompt,
+        options,
+        correctIndex: correctIndex ?? 0,
+        explanation: q.explanation || '',
+      };
+    });
+  }, [lessonContent, lessonActivity]);
+
   if (!lessonData) {
     return <div className="min-h-screen bg-gray-950 text-white p-10">Loading lesson...</div>;
   }
-
-  const lessonContent = lessonData.lesson.content as any;
-  const quizQuestions = Array.isArray(lessonContent?.questions)
-    ? lessonContent.questions
-    : lessonContent?.question
-      ? [{
-          prompt: lessonContent.question,
-          options: lessonContent.options ?? [],
-          correctIndex: lessonContent.correctIndex,
-          explanation: lessonContent.explanation,
-        }]
-      : [];
 
   return (
     <div className="flex h-screen bg-gray-950 text-white font-sans overflow-hidden">
@@ -107,7 +229,7 @@ export default function VideoLesson() {
         </div>
 
         <div className="flex-1 bg-black relative overflow-auto">
-          {lessonData.lesson.type === 'video' && (
+          {lessonType === 'video' && (
             <div className="h-full flex items-center justify-center relative">
               <img src="https://images.unsplash.com/photo-1516116216624-53e697fedbea?auto=format&fit=crop&q=80&w=1600" className="w-full h-full object-cover opacity-50" />
               <div className="absolute inset-0 flex items-center justify-center">
@@ -131,25 +253,72 @@ export default function VideoLesson() {
             </div>
           )}
 
-          {lessonData.lesson.type === 'reading' && (
-            <div className="mx-auto max-w-4xl px-8 py-12">
-              <div className="mb-8">
-                <div className="text-xs font-black uppercase tracking-[0.2em] text-brand-400">Reading Lesson</div>
-                <p className="mt-3 text-lg text-gray-300">{lessonData.lesson.description}</p>
+          {lessonType === 'reading' && (
+            <div className="mx-auto max-w-6xl w-full px-8 py-12">
+              <div className="mb-8 flex items-start justify-between gap-6">
+                <div className="flex-1">
+                  <div className="text-xs font-black uppercase tracking-[0.2em] text-brand-400">Reading Lesson</div>
+                  <h2 className="mt-1 text-2xl font-black text-white">{lessonData.lesson.title}</h2>
+                  <p className="mt-3 text-lg text-gray-300">{lessonData.lesson.description}</p>
+                </div>
+                <button
+                  onClick={toggleSpeech}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-gray-800 bg-gray-900 hover:bg-gray-800 text-sm font-semibold text-white transition-all shadow-md shrink-0 hover:border-brand-500/50"
+                  title="Listen to this lesson read aloud"
+                >
+                  {isPlayingSpeech ? (
+                    <>
+                      <Pause className="w-4 h-4 text-brand-500 animate-pulse" />
+                      <span>Pause Audio</span>
+                    </>
+                  ) : (
+                    <>
+                      <Volume2 className="w-4 h-4 text-brand-400" />
+                      <span>Listen Lesson</span>
+                    </>
+                  )}
+                </button>
               </div>
               <div className="space-y-6">
-                {(lessonContent?.sections ?? []).map((section: any, index: number) => (
-                  <div key={`${section.heading}-${index}`} className="rounded-3xl border border-gray-800 bg-gray-900/70 p-6">
+                {sections.map((section: any, index: number) => (
+                  <div key={`${section.heading}-${index}`} className="rounded-3xl border border-gray-800 bg-gray-900/70 p-6 overflow-hidden">
                     <h3 className="text-xl font-black text-white">{section.heading}</h3>
                     <p className="mt-3 leading-8 text-gray-300">{section.body}</p>
+                    
+                    {(section.imageUrl || section.image) && (
+                      <div className="mt-6 overflow-hidden rounded-2xl border border-gray-800/80 bg-black/40 shadow-inner">
+                        <img 
+                          src={section.imageUrl || section.image} 
+                          alt={section.heading} 
+                          className="w-full max-h-[380px] object-cover transition-transform duration-500 hover:scale-[1.02]" 
+                        />
+                      </div>
+                    )}
+
+                    {section.diagram && (
+                      <div className="mt-6 rounded-2xl bg-black/40 border border-gray-800/80 p-6 flex flex-col md:flex-row items-center justify-center gap-4 flex-wrap">
+                        {section.diagram.split('->').map((step: string, sIdx: number, arr: any[]) => (
+                          <div key={sIdx} className="flex flex-col md:flex-row items-center gap-4">
+                            <div className="px-5 py-3 rounded-xl bg-brand-500/10 border border-brand-500/30 text-white font-bold text-sm tracking-wide text-center shadow-lg min-w-[140px]">
+                              {step.trim()}
+                            </div>
+                            {sIdx < arr.length - 1 && (
+                              <span className="text-brand-400 font-extrabold rotate-90 md:rotate-0 text-xl">
+                                →
+                              </span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
             </div>
           )}
 
-          {lessonData.lesson.type === 'quiz' && (
-            <div className="mx-auto max-w-3xl px-8 py-12">
+          {lessonType === 'quiz' && (
+            <div className="mx-auto max-w-6xl w-full px-8 py-12">
               <div className="rounded-[2rem] border border-gray-800 bg-gray-900/70 p-8">
                 <div className="text-xs font-black uppercase tracking-[0.2em] text-brand-400">Knowledge Check</div>
                 <h3 className="mt-4 text-2xl font-black text-white">{lessonData.lesson.title}</h3>
@@ -211,13 +380,13 @@ export default function VideoLesson() {
             </div>
           )}
 
-          {lessonData.lesson.type === 'assignment' && (
-            <div className="mx-auto max-w-4xl px-8 py-12">
+          {lessonType === 'assignment' && (
+            <div className="mx-auto max-w-6xl w-full px-8 py-12">
               <div className="rounded-[2rem] border border-gray-800 bg-gray-900/70 p-8">
                 <div className="text-xs font-black uppercase tracking-[0.2em] text-brand-400">Assignment</div>
-                <p className="mt-4 text-lg leading-8 text-gray-300">{lessonContent?.brief || lessonData.lesson.description}</p>
+                <p className="mt-4 text-lg leading-8 text-gray-300">{lessonActivity?.assignment?.description || lessonContent?.brief || lessonData.lesson.description}</p>
                 <div className="mt-6 space-y-2">
-                  {(lessonContent?.deliverables ?? []).map((item: string, index: number) => (
+                  {(lessonActivity?.assignment?.deliverables || lessonContent?.deliverables || []).map((item: string, index: number) => (
                     <div key={`${item}-${index}`} className="rounded-2xl bg-black/30 px-4 py-3 text-sm font-bold text-gray-200">
                       {item}
                     </div>
@@ -263,7 +432,7 @@ export default function VideoLesson() {
             </div>
           )}
 
-          {lessonData.lesson.type === 'live' && (
+          {lessonType === 'live' && (
             <div className="mx-auto max-w-4xl px-8 py-12">
               <div className="rounded-[2rem] border border-gray-800 bg-gray-900/70 p-8">
                 <div className="text-xs font-black uppercase tracking-[0.2em] text-brand-400">Live Session</div>
@@ -294,66 +463,91 @@ export default function VideoLesson() {
               Next <ChevronRight className="w-5 h-5" />
             </button>
           )}
-          <button className="flex items-center gap-2 text-sm font-medium text-gray-400 hover:text-white transition-colors">
+          <button 
+            onClick={() => setShowBottomPanel(!showBottomPanel)} 
+            className={`flex items-center gap-2 text-sm font-medium transition-colors ${showBottomPanel ? 'text-brand-400 font-semibold' : 'text-gray-400 hover:text-white'}`}
+          >
             <MessageSquare className="w-5 h-5" /> Discussion
           </button>
         </div>
 
-        <div className="border-t border-gray-800 bg-gray-950/60 px-8 py-6">
-          <div className="grid gap-6 lg:grid-cols-2">
-            <div className="rounded-3xl border border-gray-800 bg-gray-900/70 p-6">
-              <div className="text-xs font-black uppercase tracking-[0.2em] text-brand-400">Discussion</div>
-              <div className="mt-4 space-y-3 max-h-64 overflow-auto">
-                {(lessonActivity?.discussion ?? []).map((comment: any) => (
-                  <div key={comment.id} className="rounded-2xl bg-black/30 px-4 py-3">
-                    <div className="text-sm font-black text-white">{comment.user.firstName} {comment.user.lastName}</div>
-                    <div className="mt-1 text-sm text-gray-300">{comment.message}</div>
-                  </div>
-                ))}
-                {(lessonActivity?.discussion?.length ?? 0) === 0 && (
-                  <div className="text-sm text-gray-400">No discussion yet for this lesson.</div>
-                )}
-              </div>
-              <div className="mt-4 flex gap-3">
-                <textarea value={discussionMessage} onChange={(e) => setDiscussionMessage(e.target.value)} placeholder="Ask a question or share an insight" className="min-h-24 flex-1 rounded-2xl border border-gray-800 bg-black/30 px-4 py-3 text-sm text-white outline-none" />
-                <button
-                  className="rounded-2xl bg-brand-600 px-5 py-3 text-sm font-black text-white disabled:opacity-60"
-                  disabled={!discussionMessage.trim()}
-                  onClick={async () => {
-                    if (!enrollment || !discussionMessage.trim()) return;
-                    try {
-                      await addLessonDiscussionComment(enrollment.id, lessonId, discussionMessage.trim());
-                      setLessonActivity(await getLessonActivity(enrollment.id, lessonId));
-                      setDiscussionMessage('');
-                      addToast('Discussion comment posted.', 'success');
-                    } catch (error) {
-                      addToast(error instanceof Error ? error.message : 'Unable to post comment', 'error');
-                    }
-                  }}
-                >
-                  Post
-                </button>
-              </div>
-            </div>
+        <div className="border-t border-gray-800 bg-gray-950/40">
+          <button 
+            onClick={() => setShowBottomPanel(!showBottomPanel)}
+            className="w-full h-8 flex items-center justify-center bg-gray-900/20 hover:bg-gray-900/40 transition-colors border-b border-gray-800/30 text-gray-500 hover:text-gray-300 gap-1.5"
+            title={showBottomPanel ? "Hide Discussion & Announcements" : "Show Discussion & Announcements"}
+          >
+            {showBottomPanel ? (
+              <>
+                <span className="text-[10px] font-bold uppercase tracking-wider">Hide Panel</span>
+                <ChevronDown className="w-3.5 h-3.5" />
+              </>
+            ) : (
+              <>
+                <span className="text-[10px] font-bold uppercase tracking-wider">Show Discussion & Announcements</span>
+                <ChevronUp className="w-3.5 h-3.5" />
+              </>
+            )}
+          </button>
 
-            <div className="rounded-3xl border border-gray-800 bg-gray-900/70 p-6">
-              <div className="text-xs font-black uppercase tracking-[0.2em] text-brand-400">Course Announcements</div>
-              <div className="mt-4 space-y-3 max-h-64 overflow-auto">
-                {(lessonActivity?.announcements ?? []).map((announcement: any) => (
-                  <div key={announcement.id} className="rounded-2xl bg-black/30 px-4 py-3">
-                    <div className="text-sm font-black text-white">{announcement.title}</div>
-                    <div className="mt-1 text-sm text-gray-300">{announcement.body}</div>
-                    <div className="mt-2 text-xs text-gray-500">
-                      {announcement.author.firstName} {announcement.author.lastName} • {new Date(announcement.createdAt).toLocaleDateString()}
-                    </div>
+          {showBottomPanel && (
+            <div className="px-8 py-6">
+              <div className="grid gap-6 lg:grid-cols-2">
+                <div className="rounded-3xl border border-gray-800 bg-gray-900/70 p-6">
+                  <div className="text-xs font-black uppercase tracking-[0.2em] text-brand-400">Discussion</div>
+                  <div className="mt-4 space-y-3 max-h-64 overflow-auto">
+                    {(lessonActivity?.discussion ?? []).map((comment: any) => (
+                      <div key={comment.id} className="rounded-2xl bg-black/30 px-4 py-3">
+                        <div className="text-sm font-black text-white">{comment.user.firstName} {comment.user.lastName}</div>
+                        <div className="mt-1 text-sm text-gray-300">{comment.message}</div>
+                      </div>
+                    ))}
+                    {(lessonActivity?.discussion?.length ?? 0) === 0 && (
+                      <div className="text-sm text-gray-400">No discussion yet for this lesson.</div>
+                    )}
                   </div>
-                ))}
-                {(lessonActivity?.announcements?.length ?? 0) === 0 && (
-                  <div className="text-sm text-gray-400">No announcements yet.</div>
-                )}
+                  <div className="mt-4 flex gap-3">
+                    <textarea value={discussionMessage} onChange={(e) => setDiscussionMessage(e.target.value)} placeholder="Ask a question or share an insight" className="min-h-24 flex-1 rounded-2xl border border-gray-800 bg-black/30 px-4 py-3 text-sm text-white outline-none" />
+                    <button
+                      className="rounded-2xl bg-brand-600 px-5 py-3 text-sm font-black text-white disabled:opacity-60"
+                      disabled={!discussionMessage.trim()}
+                      onClick={async () => {
+                        if (!enrollment || !discussionMessage.trim()) return;
+                        try {
+                          await addLessonDiscussionComment(enrollment.id, lessonId, discussionMessage.trim());
+                          setLessonActivity(await getLessonActivity(enrollment.id, lessonId));
+                          setDiscussionMessage('');
+                          addToast('Discussion comment posted.', 'success');
+                        } catch (error) {
+                          addToast(error instanceof Error ? error.message : 'Unable to post comment', 'error');
+                        }
+                      }}
+                    >
+                      Post
+                    </button>
+                  </div>
+                </div>
+
+                <div className="rounded-3xl border border-gray-800 bg-gray-900/70 p-6">
+                  <div className="text-xs font-black uppercase tracking-[0.2em] text-brand-400">Course Announcements</div>
+                  <div className="mt-4 space-y-3 max-h-64 overflow-auto">
+                    {(lessonActivity?.announcements ?? []).map((announcement: any) => (
+                      <div key={announcement.id} className="rounded-2xl bg-black/30 px-4 py-3">
+                        <div className="text-sm font-black text-white">{announcement.title}</div>
+                        <div className="mt-1 text-sm text-gray-300">{announcement.body}</div>
+                        <div className="mt-2 text-xs text-gray-500">
+                          {announcement.author.firstName} {announcement.author.lastName} • {new Date(announcement.createdAt).toLocaleDateString()}
+                        </div>
+                      </div>
+                    ))}
+                    {(lessonActivity?.announcements?.length ?? 0) === 0 && (
+                      <div className="text-sm text-gray-400">No announcements yet.</div>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
+          )}
         </div>
 
         {completionCertificate && (
@@ -379,28 +573,76 @@ export default function VideoLesson() {
           <p className="text-xs text-gray-400">{Math.round(enrollment?.progressPercent ?? 0)}% Completed</p>
         </div>
         <div className="flex-1 overflow-y-auto">
-          {(enrollment?.course.modules ?? []).map((module: any) => (
-            <div key={module.id} className="border-b border-gray-800">
-              <div className="p-4 bg-gray-800/50 font-medium text-sm text-gray-200">{module.title}</div>
-              <div>
-                {module.lessons.map((lesson: any) => {
-                  const active = lesson.id === lessonId;
-                  const completed = completedLessonIds.has(lesson.id);
-                  return (
-                    <Link key={lesson.id} href={`/course/${courseId}/lesson/${lesson.id}`} className={`flex items-start gap-3 p-4 cursor-pointer hover:bg-gray-800 transition-colors ${active ? 'bg-gray-800 border-l-2 border-brand-500' : ''}`}>
-                      <CheckCircle2 className={`w-5 h-5 shrink-0 mt-0.5 ${completed ? 'text-brand-500' : 'text-gray-600'}`} />
-                      <div>
-                        <div className={`text-sm font-medium mb-1 ${active ? 'text-brand-400' : 'text-gray-300'}`}>{lesson.title}</div>
-                        <div className="text-xs text-gray-500 flex items-center gap-1.5">
-                          <Play className="w-3 h-3" /> {lesson.duration}
-                        </div>
-                      </div>
-                    </Link>
-                  );
-                })}
+          {(enrollment?.course.modules ?? []).map((module: any) => {
+            const isModuleCompleted = module.lessons.length > 0 && module.lessons.every((lesson: any) => completedLessonIds.has(lesson.id));
+            const isExpanded = !!expandedModules[module.id];
+            return (
+              <div key={module.id} className="border-b border-gray-800">
+                <button 
+                  onClick={() => toggleModule(module.id)}
+                  className={`w-full p-4 font-semibold text-sm flex items-center justify-between text-left transition-colors hover:bg-gray-800/40 ${
+                    isModuleCompleted 
+                      ? 'bg-emerald-950/20 text-emerald-400 border-b border-emerald-950/30' 
+                      : 'bg-gray-800/50 text-gray-200'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    {isModuleCompleted ? (
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                    ) : (
+                      <span className="w-1.5 h-1.5 rounded-full bg-brand-500 shrink-0" />
+                    )}
+                    <span>{module.title}</span>
+                  </div>
+                  {isExpanded ? (
+                    <ChevronUp className="w-4 h-4 text-gray-400 shrink-0" />
+                  ) : (
+                    <ChevronDown className="w-4 h-4 text-gray-400 shrink-0" />
+                  )}
+                </button>
+                {isExpanded && (
+                  <div className="bg-gray-950/50">
+                    {module.lessons.map((lesson: any) => {
+                      const active = lesson.id === lessonId;
+                      const completed = completedLessonIds.has(lesson.id);
+                      return (
+                        <Link 
+                          key={lesson.id} 
+                          href={`/course/${courseId}/lesson/${lesson.id}`} 
+                          className={`flex items-start gap-3 p-4 pl-6 cursor-pointer hover:bg-gray-800 transition-colors ${
+                            active 
+                              ? 'bg-gray-800 border-l-2 border-brand-500' 
+                              : completed 
+                                ? 'bg-emerald-950/5' 
+                                : ''
+                          }`}
+                        >
+                          <CheckCircle2 className={`w-5 h-5 shrink-0 mt-0.5 ${completed ? 'text-emerald-500' : 'text-gray-600'}`} />
+                          <div>
+                            <div className={`text-sm font-medium mb-1 ${
+                              active 
+                                ? 'text-brand-400 font-semibold' 
+                                : completed 
+                                  ? 'text-emerald-400/90' 
+                                  : 'text-gray-300'
+                            }`}>{lesson.title}</div>
+                            <div className="text-xs text-gray-500 flex items-center gap-2 mt-1">
+                              <span className="flex items-center gap-1.5">
+                                {getLessonIcon(lesson.type)}
+                                <span className="capitalize">{lesson.type?.toLowerCase()}</span>
+                              </span>
+                              <span>•</span>
+                              <span>{lesson.duration || '5m'}</span>
+                            </div>
+                          </div>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </div>

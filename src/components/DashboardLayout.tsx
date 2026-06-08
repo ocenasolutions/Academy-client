@@ -24,6 +24,7 @@ import {
   Shield,
   Ticket,
   Users,
+  Briefcase,
 } from 'lucide-react';
 import { ThemeSwitcher } from './ThemeSwitcher';
 import { StudentReferenceShell } from './StudentReferenceShell';
@@ -65,6 +66,7 @@ export function DashboardLayout({ children, role }: { children: ReactNode; role:
               { name: 'Overview', href: '/dashboard/student', icon: LayoutDashboard },
               { name: 'Progress', href: '/dashboard/student/progress', icon: BarChart },
               { name: 'Certificates', href: '/dashboard/student/certificates', icon: Award },
+              { name: 'Careers & Community', href: '/dashboard/student/careers', icon: Briefcase },
               { name: 'Payments', href: '/dashboard/student/payments', icon: CreditCard },
               { name: 'Support', href: '/dashboard/student/support', icon: Ticket },
               { name: 'Settings', href: '/settings', icon: Settings },
@@ -397,6 +399,9 @@ function getStudentSidebarKey(pathname: string) {
   }
   if (pathname.startsWith('/dashboard/student/certificates')) {
     return 'certificates';
+  }
+  if (pathname.startsWith('/dashboard/student/careers')) {
+    return 'careers';
   }
   if (pathname.startsWith('/dashboard/student/support')) {
     return 'support';

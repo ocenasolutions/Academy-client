@@ -70,9 +70,13 @@ function mapLesson(lesson: any) {
 }
 
 function mapCourse(serverCourse: ServerCourse): Course {
+  let totalLessonCount = 0;
   const modules = (serverCourse.modules ?? []).map((module: any) => {
-    const lessons = (module.lessons ?? []).map(mapLesson);
+    const lessons = Array.isArray(module.lessons) ? module.lessons.map(mapLesson) : [];
+    const moduleLessonCount = module._count?.lessons ?? lessons.length;
+    totalLessonCount += moduleLessonCount;
     const moduleSeconds = lessons.reduce((sum: number, lesson: any) => sum + (lesson.durationSeconds ?? 0), 0);
+    // PERF: accept sparse course payloads that only return module lesson counts.
     return {
       id: module.id,
       title: module.title,
@@ -118,7 +122,7 @@ function mapCourse(serverCourse: ServerCourse): Course {
     category: serverCourse.category?.name || 'General',
     categorySlug: serverCourse.category?.slug,
     language: serverCourse.language || 'en',
-    lessons: allLessons.length,
+    lessons: totalLessonCount || allLessons.length,
     students: serverCourse._count?.enrollments ?? 0,
     outcomes: outcomes.length ? outcomes : [serverCourse.summary || 'Learn through a structured curriculum.'],
     modules,
@@ -480,6 +484,22 @@ export async function updateCourseCurriculum(courseId: string, body: { modules: 
   return request<any>(`courses/${courseId}/curriculum`, {
     method: 'PUT',
     body: JSON.stringify(body),
+  }, { auth: true });
+}
+
+export async function updateCourse(id: string, body: Record<string, unknown>) {
+  // PERF: send full course basics edits through the general course update route instead of the narrow admin moderation endpoint.
+  return request<any>(`courses/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  }, { auth: true });
+}
+
+export async function updateCourseStatus(id: string, status: string) {
+  // PERF: keep status changes on the dedicated route so the editor does not overload the admin moderation patch shape.
+  return request<any>(`courses/${id}/status/${encodeURIComponent(status)}`, {
+    method: 'PATCH',
+    body: JSON.stringify({}),
   }, { auth: true });
 }
 

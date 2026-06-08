@@ -22,6 +22,8 @@ import {
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/contexts/ToastContext';
 import { createCourseReview, getCourse, getCourseAnnouncements, getEnrollmentByCourse } from '@/lib/api';
+import { readSession } from '@/lib/auth';
+import { formatINRFromRupees } from '@/lib/currency';
 import { Course } from '@/types';
 import type { LucideIcon } from 'lucide-react';
 
@@ -38,7 +40,7 @@ type LearnBlock = {
 
 function formatPrice(price: number) {
   if (price === 0) return 'Free';
-  return Number.isInteger(price) ? `$${price}` : `$${price.toFixed(2)}`;
+  return formatINRFromRupees(price);
 }
 
 export default function CourseDetail() {
@@ -66,15 +68,22 @@ export default function CourseDetail() {
   }, [id]);
 
   useEffect(() => {
-    if (!id || !user || user.role !== 'STUDENT') {
+    if (!id) {
       setEnrollment(null);
       return;
     }
 
+    const session = readSession();
+    if (!session?.accessToken) {
+      setEnrollment(null);
+      return;
+    }
+
+    // PERF: fetch enrollment state as soon as a token is available, without waiting for auth state.
     getEnrollmentByCourse(id)
       .then(setEnrollment)
       .catch(() => setEnrollment(null));
-  }, [id, user]);
+  }, [id]);
 
   const handleSearch = (event: FormEvent) => {
     event.preventDefault();
@@ -377,7 +386,7 @@ export default function CourseDetail() {
                   <div className="space-y-4">
                     {course.modules.map((module, moduleIndex) => {
                       const previewLessons = module.lessons.slice(0, 2);
-                      const isLocked = moduleIndex >= 2;
+                      const isLocked = false;
 
                       return (
                         <details

@@ -5,6 +5,22 @@ import { getCurrentUser, login, logout, register, verifyAdminOtp } from '@/lib/a
 import { clearSession, getDashboardPath, readSession, writeSession } from '@/lib/auth';
 import { User, UserRole } from '@/types';
 
+function getTokenExpiryMs(token: string) {
+  try {
+    const payloadBase64 = token.split('.')[1]?.replace(/-/g, '+').replace(/_/g, '/');
+    const paddedPayload = payloadBase64.padEnd(Math.ceil(payloadBase64.length / 4) * 4, '=');
+    const payload = JSON.parse(atob(paddedPayload));
+    return typeof payload?.exp === 'number' ? payload.exp * 1000 : null;
+  } catch {
+    return null;
+  }
+}
+
+function isExpiringSoon(token: string, bufferMs = 60_000) {
+  const expiresAt = getTokenExpiryMs(token);
+  return !expiresAt || expiresAt - Date.now() <= bufferMs;
+}
+
 interface AuthContextValue {
   user: User | null;
   loading: boolean;
@@ -38,8 +54,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    if (session.user) {
+    if (session.user && !isExpiringSoon(session.accessToken)) {
+      // PERF: reuse the cached session user when the JWT is still healthy.
       setUser(session.user);
+      setLoading(false);
+      return;
     }
 
     getCurrentUser()

@@ -5,17 +5,23 @@ import { useEffect, useState } from 'react';
 import { Award, Download, Share2 } from 'lucide-react';
 import { DashboardLayout } from '@/components/DashboardLayout';
 import { getMyCertificates } from '@/lib/api';
+import { readSession } from '@/lib/auth';
 import { useProtectedPage } from '@/lib/use-protected-page';
 import { Certificate } from '@/types';
 
 export default function StudentCertificatesPage() {
-  const { user } = useProtectedPage(['STUDENT']);
+  useProtectedPage(['STUDENT']);
   const [certificates, setCertificates] = useState<Certificate[]>([]);
 
   useEffect(() => {
-    if (!user) return;
+    const session = readSession();
+    if (!session?.accessToken) {
+      return;
+    }
+
+    // PERF: load certificates immediately instead of waiting for the auth hook to provide a user object.
     getMyCertificates().then(setCertificates).catch(() => setCertificates([]));
-  }, [user]);
+  }, []);
 
   return (
     <DashboardLayout role="student">
