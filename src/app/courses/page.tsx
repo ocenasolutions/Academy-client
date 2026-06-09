@@ -9,6 +9,7 @@ import { getCourses } from '@/lib/api';
 import { Course } from '@/types';
 import { Bell, Search } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { ThemeSwitcher } from '@/components/ThemeSwitcher';
 
 export default function CourseListing() {
   return (
@@ -112,54 +113,58 @@ function CourseListingInner() {
   }, [filteredCourses]);
 
   return (
-    <div className="min-h-screen bg-[#f6fafe] text-slate-900">
-      <nav className="sticky top-0 z-50 w-full border-b border-slate-200 bg-white/95 backdrop-blur">
-        <div className="mx-auto flex h-14 max-w-[1560px] items-center justify-between px-4 md:px-6">
+    <div className="min-h-screen bg-[var(--bg-main)] text-[var(--color-text-main)] font-sans selection:bg-brand-500/30 selection:text-[var(--text-heading)] transition-colors duration-300">
+      {/* Navigation */}
+      <nav className="sticky top-0 z-50 w-full border-b border-[var(--surface-border)] bg-[var(--surface-card-soft)]/85 backdrop-blur-md">
+        <div className="mx-auto flex h-16 max-w-[1560px] items-center justify-between px-4 md:px-6">
           <div className="flex items-center gap-6 md:gap-10">
-            <Link href="/" className="text-lg font-black tracking-tight text-slate-900 md:text-xl">
-              CourseForge
+            <Link href="/" className="text-lg font-black tracking-tight text-[var(--text-heading)] md:text-xl flex items-center gap-2">
+              <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-brand-500 text-sm font-bold text-white shadow-[0_4px_12px_rgba(59,130,246,0.3)]">CF</span>
+              <span>CourseForge</span>
             </Link>
             <div className="hidden items-center gap-6 md:flex">
-              <Link href="/courses" className="border-b-2 border-blue-600 py-3 text-sm font-semibold text-blue-700">
+              <Link href="/courses" className="border-b-2 border-brand-500 py-4 text-sm font-bold text-brand-500">
                 Catalog
               </Link>
-              <Link href="/dashboard" className="py-3 text-sm font-medium text-slate-500 hover:text-slate-900">
+              <Link href="/dashboard" className="py-4 text-sm font-medium text-[var(--color-text-main)]/70 hover:text-[var(--text-heading)] transition-colors">
                 Dashboard
               </Link>
             </div>
           </div>
 
-              <div className="flex items-center gap-4 md:gap-6">
+          <div className="flex items-center gap-4 md:gap-6">
             <form onSubmit={handleSearchSubmit} className="hidden w-[260px] items-center md:flex">
-              <div className="flex w-full items-center rounded-full border border-slate-300 bg-[#f6f7fb] px-4 py-2 shadow-inner">
-                <Search className="h-4 w-4 text-slate-400" />
+              <div className="flex w-full items-center rounded-full border border-[var(--surface-border)] bg-[var(--surface-card)]/50 px-4 py-2 focus-within:border-brand-500/50 transition-all duration-300">
+                <Search className="h-4 w-4 text-[var(--color-text-main)]/40" />
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="What do you want to learn?"
-                  className="w-full bg-transparent pl-3 text-sm outline-none placeholder:text-slate-400"
+                  className="w-full bg-transparent pl-3 text-sm text-[var(--text-heading)] outline-none placeholder:text-[var(--color-text-main)]/45"
                 />
               </div>
             </form>
-            <button aria-label="notifications" className="hidden text-slate-400 md:block">
+            <button aria-label="notifications" className="hidden text-[var(--color-text-main)]/70 hover:text-[var(--text-heading)] transition-colors md:block">
               <Bell className="h-4.5 w-4.5" />
             </button>
-            <div className="flex items-center gap-2 border-l border-slate-200 pl-4">
+            <ThemeSwitcher />
+            <div className="flex items-center gap-2 border-l border-[var(--surface-border)] pl-4">
               <img
                 alt={user?.name || 'User'}
                 src={user?.avatar || 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=120&h=120&fit=crop&crop=face'}
-                className="h-8 w-8 rounded-full object-cover"
+                className="h-8 w-8 rounded-full object-cover border border-[var(--surface-border)]"
               />
-              <span className="hidden text-sm font-medium text-slate-700 sm:block">{user?.name || 'John Doe'}</span>
+              <span className="hidden text-sm font-semibold text-[var(--text-heading)]/90 sm:block">{user?.name || 'John Doe'}</span>
             </div>
           </div>
         </div>
       </nav>
 
-      <main className="mx-auto max-w-[1560px] px-4 pb-24 pt-6 md:px-6">
-        <section className="mb-10">
-          <div className="relative h-[420px] overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
+      <main className="mx-auto max-w-[1560px] px-4 pb-24 pt-8 md:px-6">
+        {/* Featured Path Slideshow Banner */}
+        <section className="mb-12">
+          <div className="relative h-[420px] overflow-hidden rounded-[28px] border border-[var(--surface-border)] bg-[var(--surface-card)] shadow-2xl">
             <div
               className="flex h-full w-full transition-transform duration-700 ease-out"
               style={{ transform: `translateX(-${heroSlide * 100}%)` }}
@@ -183,14 +188,14 @@ function CourseListingInner() {
               ].map((slide) => (
                 <div key={slide.title} className="relative h-full min-w-full overflow-hidden">
                   <img src={slide.image} alt={slide.title} className="h-full w-full object-cover" />
-                  <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/35 to-black/10" />
-                  <div className="absolute inset-0 flex items-end p-6 md:p-10">
+                  <div className="absolute inset-0 bg-gradient-to-r from-[var(--bg-main)]/90 via-[var(--bg-main)]/40 to-transparent" />
+                  <div className="absolute inset-0 flex items-end p-8 md:p-12">
                     <div className="max-w-xl text-white">
-                      <div className="mb-3 text-xs font-semibold uppercase tracking-[0.28em] text-white/70">
+                      <div className="mb-3.5 text-xs font-bold uppercase tracking-[0.28em] text-brand-500">
                         Featured path
                       </div>
-                      <h3 className="text-3xl font-semibold tracking-tight md:text-5xl">{slide.title}</h3>
-                      <p className="mt-4 max-w-lg text-sm leading-7 text-white/80 md:text-base">
+                      <h3 className="text-3xl font-extrabold tracking-tight md:text-5xl mb-4 text-[var(--text-heading)]">{slide.title}</h3>
+                      <p className="max-w-lg text-sm leading-relaxed text-[var(--color-text-main)]/80 md:text-base">
                         {slide.text}
                       </p>
                     </div>
@@ -198,14 +203,14 @@ function CourseListingInner() {
                 </div>
               ))}
             </div>
-            <div className="absolute bottom-5 left-1/2 z-10 flex -translate-x-1/2 gap-2">
+            <div className="absolute bottom-6 left-1/2 z-10 flex -translate-x-1/2 gap-2">
               {[0, 1, 2].map((index) => (
                 <button
                   key={index}
                   type="button"
                   onClick={() => setHeroSlide(index)}
-                  className={`h-2.5 rounded-full transition-all ${
-                    heroSlide === index ? 'w-10 bg-white' : 'w-2.5 bg-white/50'
+                  className={`h-2 rounded-full transition-all duration-300 ${
+                    heroSlide === index ? 'w-10 bg-brand-500' : 'bg-[var(--color-text-main)]/30 hover:bg-[var(--color-text-main)]/60 w-2'
                   }`}
                   aria-label={`Go to slide ${index + 1}`}
                 />
@@ -214,13 +219,17 @@ function CourseListingInner() {
           </div>
         </section>
 
-        <div className="flex items-center justify-end border-y border-slate-200 py-4 text-sm text-slate-600">
+        {/* Sort and Filter controls */}
+        <div className="flex items-center justify-between border-y border-[var(--surface-border)] py-4 text-sm text-[var(--color-text-main)]/60 mb-8">
+          <div className="text-sm font-medium text-[var(--color-text-main)]/60">
+            Showing <span className="text-[var(--text-heading)] font-black">{visibleCourses.length}</span> course{visibleCourses.length !== 1 ? 's' : ''}
+          </div>
           <label className="flex items-center gap-3">
-            <span className="font-medium">Sort by:</span>
+            <span className="font-bold text-[var(--color-text-main)]/80">Sort by:</span>
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value)}
-              className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-900 shadow-sm outline-none"
+              className="rounded-full border border-[var(--surface-border)] bg-[var(--surface-card)] px-4 py-2 text-sm font-bold text-[var(--text-heading)] shadow-sm outline-none focus:border-brand-500 transition-colors"
             >
               <option value="popular">Most Popular</option>
               <option value="highest_rated">Highest Rated</option>
@@ -229,16 +238,17 @@ function CourseListingInner() {
           </label>
         </div>
 
-        <div className="space-y-24 py-12">
+        {/* Grid Collections */}
+        <div className="space-y-20 py-4">
           {isLoading ? (
-            <div className="space-y-24">
+            <div className="space-y-20">
               {[1, 2, 3].map((sectionIndex) => (
-                <section key={sectionIndex} className="space-y-4">
+                <section key={sectionIndex} className="space-y-6">
                   <div>
-                    <div className="h-8 w-44 rounded bg-slate-200/70" />
-                    <div className="mt-2 h-4 w-60 rounded bg-slate-200/60" />
+                    <div className="h-8 w-44 rounded bg-[var(--surface-border)] animate-pulse" />
+                    <div className="mt-2 h-4 w-60 rounded bg-[var(--surface-border)]/50 animate-pulse" />
                   </div>
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+                  <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                     {[1, 2, 3, 4].map((i) => (
                       <SkeletonCourseCard key={`${sectionIndex}-${i}`} index={i} />
                     ))}
@@ -274,12 +284,12 @@ function CourseListingInner() {
                 ];
 
                 return sections.map((section) => (
-                  <section key={section.title} className="space-y-4">
+                  <section key={section.title} className="space-y-6">
                     <div>
-                      <h3 className="text-2xl font-semibold tracking-tight text-slate-900">{section.title}</h3>
-                      <p className="mt-1 text-sm text-slate-500">{section.subtitle}</p>
+                      <h3 className="text-2xl font-extrabold tracking-tight text-[var(--text-heading)]">{section.title}</h3>
+                      <p className="mt-1 text-sm text-[var(--color-text-main)]/70">{section.subtitle}</p>
                     </div>
-                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+                    <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                       {section.courses.map((course, i) => (
                         <CourseCard key={course.id} course={course} index={i} />
                       ))}
@@ -290,11 +300,11 @@ function CourseListingInner() {
             </>
           ) : (
             <div className="py-24 text-center">
-              <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-[18px] bg-white shadow-inner">
-                <Search className="h-10 w-10 text-slate-300" />
+              <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-[18px] bg-[var(--surface-card-soft)] border border-[var(--surface-border)] shadow-inner">
+                <Search className="h-10 w-10 text-[var(--color-text-main)]/50" />
               </div>
-              <h3 className="mb-3 text-2xl font-semibold tracking-tight text-slate-900">No courses found</h3>
-              <p className="font-medium text-slate-500">Try adjusting your search to find what you&apos;re looking for.</p>
+              <h3 className="mb-3 text-2xl font-bold tracking-tight text-[var(--text-heading)]">No courses found</h3>
+              <p className="font-medium text-[var(--color-text-main)]/70">Try adjusting your search to find what you&apos;re looking for.</p>
               <button
                 onClick={() => {
                   setSearchQuery('');
@@ -302,7 +312,7 @@ function CourseListingInner() {
                   setSelectedLevel(null);
                   router.replace('/courses');
                 }}
-                className="mt-8 rounded-full border border-slate-200 bg-white px-8 py-3 font-semibold text-slate-900 shadow-sm"
+                className="mt-8 rounded-full border border-[var(--surface-border)] bg-[var(--surface-card)] hover:bg-[var(--surface-card-soft)] px-8 py-3 font-bold text-[var(--text-heading)] shadow-sm transition-colors"
               >
                 Clear all filters
               </button>
@@ -311,45 +321,49 @@ function CourseListingInner() {
         </div>
       </main>
 
-      <footer className="border-t border-slate-200 bg-[#eef1f5] py-12">
+      {/* Footer */}
+      <footer className="border-t border-[var(--surface-border)] bg-[var(--surface-card-soft)]/50 py-16">
         <div className="mx-auto grid max-w-[1560px] grid-cols-2 gap-8 px-4 md:grid-cols-4 md:px-6">
-          <div className="col-span-2 space-y-5 md:col-span-1">
-            <div className="text-xl font-black tracking-tight text-slate-900">CourseForge</div>
-            <p className="max-w-xs text-sm leading-6 text-slate-500">
+          <div className="col-span-2 space-y-6 md:col-span-1">
+            <div className="text-xl font-black tracking-tight text-[var(--text-heading)] flex items-center gap-2">
+              <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-brand-500 text-sm font-bold text-white shadow-[0_4px_12px_rgba(59,130,246,0.3)]">CF</span>
+              <span>CourseForge</span>
+            </div>
+            <p className="max-w-xs text-sm leading-relaxed text-[var(--color-text-main)]/70 font-medium">
               World-class learning for anyone, anywhere. Build your skills with live courses, structured projects, and certificates.
             </p>
-            <div className="flex gap-3 text-slate-500">
-              <span className="rounded-full border border-slate-200 bg-white p-2">↗</span>
-              <span className="rounded-full border border-slate-200 bg-white p-2">✉</span>
-              <span className="rounded-full border border-slate-200 bg-white p-2">◎</span>
+            <div className="flex gap-3 text-[var(--color-text-main)]/55">
+              <span className="rounded-full border border-[var(--surface-border)] bg-[var(--surface-card)] hover:bg-[var(--surface-card-strong)] hover:text-[var(--text-heading)] transition-colors cursor-pointer p-2 flex items-center justify-center w-8 h-8">↗</span>
+              <span className="rounded-full border border-[var(--surface-border)] bg-[var(--surface-card)] hover:bg-[var(--surface-card-strong)] hover:text-[var(--text-heading)] transition-colors cursor-pointer p-2 flex items-center justify-center w-8 h-8">✉</span>
+              <span className="rounded-full border border-[var(--surface-border)] bg-[var(--surface-card)] hover:bg-[var(--surface-card-strong)] hover:text-[var(--text-heading)] transition-colors cursor-pointer p-2 flex items-center justify-center w-8 h-8">◎</span>
             </div>
           </div>
           <div>
-            <h4 className="mb-4 text-xs font-semibold uppercase tracking-[0.22em] text-slate-700">Platform</h4>
-            <div className="space-y-2 text-sm text-slate-500">
-              <div>Browse Catalog</div>
-              <div>Dashboard</div>
-              <div>Settings</div>
+            <h4 className="mb-4 text-xs font-bold uppercase tracking-[0.22em] text-brand-500">Platform</h4>
+            <div className="space-y-3.5 text-sm text-[var(--color-text-main)]/70 font-semibold">
+              <div className="hover:text-[var(--text-heading)] transition-colors cursor-pointer">Browse Catalog</div>
+              <div className="hover:text-[var(--text-heading)] transition-colors cursor-pointer">Dashboard</div>
+              <div className="hover:text-[var(--text-heading)] transition-colors cursor-pointer">Settings</div>
             </div>
           </div>
           <div>
-            <h4 className="mb-4 text-xs font-semibold uppercase tracking-[0.22em] text-slate-700">Roles</h4>
-            <div className="space-y-2 text-sm text-slate-500">
-              <div>Students</div>
-              <div>Instructors</div>
-              <div>Platform Admins</div>
+            <h4 className="mb-4 text-xs font-bold uppercase tracking-[0.22em] text-brand-500">Roles</h4>
+            <div className="space-y-3.5 text-sm text-[var(--color-text-main)]/70 font-semibold">
+              <div className="hover:text-[var(--text-heading)] transition-colors cursor-pointer">Students</div>
+              <div className="hover:text-[var(--text-heading)] transition-colors cursor-pointer">Instructors</div>
+              <div className="hover:text-[var(--text-heading)] transition-colors cursor-pointer">Platform Admins</div>
             </div>
           </div>
           <div>
-            <h4 className="mb-4 text-xs font-semibold uppercase tracking-[0.22em] text-slate-700">Account</h4>
-            <div className="space-y-2 text-sm text-slate-500">
-              <div>Sign Out</div>
-              <div>Help Center</div>
-              <div>Privacy Policy</div>
+            <h4 className="mb-4 text-xs font-bold uppercase tracking-[0.22em] text-brand-500">Account</h4>
+            <div className="space-y-3.5 text-sm text-[var(--color-text-main)]/70 font-semibold">
+              <div className="hover:text-[var(--text-heading)] transition-colors cursor-pointer">Sign Out</div>
+              <div className="hover:text-[var(--text-heading)] transition-colors cursor-pointer">Help Center</div>
+              <div className="hover:text-[var(--text-heading)] transition-colors cursor-pointer">Privacy Policy</div>
             </div>
           </div>
         </div>
-        <div className="mx-auto mt-10 max-w-[1560px] border-t border-slate-200 px-4 pt-8 text-center text-sm text-slate-500 md:px-6">
+        <div className="mx-auto mt-12 max-w-[1560px] border-t border-[var(--surface-border)] px-4 pt-8 text-center text-sm text-[var(--color-text-main)]/45 md:px-6">
           © 2026 CourseForge. All rights reserved.
         </div>
       </footer>

@@ -15,5 +15,5 @@ export default function StudentDashboardRedirect() {
     router.replace(query ? `/dashboard/student/progress?${query}` : '/dashboard/student/progress');
   }, [loading, router, searchParams]);
 
-  return <div className="min-h-screen bg-[#f4f7fb]" aria-hidden="true" />;
+  return <div className="min-h-screen bg-[var(--bg-main)]" aria-hidden="true" />;
 }

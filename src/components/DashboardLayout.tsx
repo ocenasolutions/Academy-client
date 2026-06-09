@@ -66,7 +66,9 @@ export function DashboardLayout({ children, role }: { children: ReactNode; role:
               { name: 'Overview', href: '/dashboard/student', icon: LayoutDashboard },
               { name: 'Progress', href: '/dashboard/student/progress', icon: BarChart },
               { name: 'Certificates', href: '/dashboard/student/certificates', icon: Award },
-              { name: 'Careers & Community', href: '/dashboard/student/careers', icon: Briefcase },
+              { name: 'Careers', href: '/dashboard/student/careers', icon: Briefcase },
+              { name: 'CourseForge Community', href: '/dashboard/student/community', icon: Users },
+              { name: 'Community', href: '/dashboard/student/community-links', icon: Users },
               { name: 'Payments', href: '/dashboard/student/payments', icon: CreditCard },
               { name: 'Support', href: '/dashboard/student/support', icon: Ticket },
               { name: 'Settings', href: '/settings', icon: Settings },
@@ -74,7 +76,17 @@ export function DashboardLayout({ children, role }: { children: ReactNode; role:
           },
         ]
       : role === 'instructor'
-        ? [{ group: 'Teaching', items: [{ name: 'Overview', href: '/dashboard/instructor', icon: LayoutDashboard }, { name: 'Settings', href: '/settings', icon: Settings }] }]
+        ? [
+            {
+              group: 'Teaching',
+              items: [
+                { name: 'Overview', href: '/dashboard/instructor', icon: LayoutDashboard },
+                { name: 'CourseForge Community', href: '/dashboard/student/community', icon: Users },
+                { name: 'Community', href: '/dashboard/student/community-links', icon: Users },
+                { name: 'Settings', href: '/settings', icon: Settings },
+              ],
+            },
+          ]
         : [
             {
               group: 'Overview',
@@ -402,6 +414,12 @@ function getStudentSidebarKey(pathname: string) {
   }
   if (pathname.startsWith('/dashboard/student/careers')) {
     return 'careers';
+  }
+  if (pathname.startsWith('/dashboard/student/community-links')) {
+    return 'community-links';
+  }
+  if (pathname.startsWith('/dashboard/student/community')) {
+    return 'community';
   }
   if (pathname.startsWith('/dashboard/student/support')) {
     return 'support';

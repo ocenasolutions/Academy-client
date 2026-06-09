@@ -6,23 +6,34 @@ import { useEffect, useState } from 'react';
 type Theme = 'light' | 'dark';
 
 export function ThemeSwitcher() {
-  const [theme, setTheme] = useState<Theme>('light');
+  const [theme, setTheme] = useState<Theme>('dark');
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     const savedTheme = localStorage.getItem('theme') as Theme | null;
-    const prefersDark = window.matchMedia?.('(prefers-color-scheme: dark)').matches;
-    setTheme(savedTheme ?? (prefersDark ? 'dark' : 'light'));
+    const prefersLight = window.matchMedia?.('(prefers-color-scheme: light)').matches;
+    setTheme(savedTheme ?? (prefersLight ? 'light' : 'dark'));
+    setMounted(true);
   }, []);
 
   useEffect(() => {
+    if (!mounted) return;
     document.documentElement.setAttribute('data-theme', theme);
     document.documentElement.style.colorScheme = theme;
     localStorage.setItem('theme', theme);
-  }, [theme]);
+  }, [theme, mounted]);
 
   const toggleTheme = () => {
     setTheme(theme === 'light' ? 'dark' : 'light');
   };
+
+  if (!mounted) {
+    return (
+      <div className="w-10 h-10 rounded-xl bg-[var(--glass-bg)] border border-[var(--glass-border)] opacity-50 flex items-center justify-center">
+        <Sun className="w-5 h-5 text-yellow-400 pointer-events-none" />
+      </div>
+    );
+  }
 
   return (
     <button

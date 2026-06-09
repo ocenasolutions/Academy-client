@@ -17,7 +17,33 @@
 
 @layer base {
   :root {
-    /* Blue Theme (Default) */
+    /* Dark Theme (Default) */
+    --brand-50: #172554;
+    --brand-100: #1e3a8a;
+    --brand-500: #3b82f6;
+    --brand-600: #60a5fa;
+    --brand-900: #dbeafe;
+    --brand-950: #eff6ff;
+    --bg-main: #0f172a;
+    --text-main: #cbd5e1;
+    --text-heading: #f8fafc;
+    --glass-bg: rgba(15, 23, 42, 0.6);
+    --glass-border: rgba(255, 255, 255, 0.1);
+    --clay-bg: rgba(30, 41, 59, 0.6);
+    --surface-card: rgba(15, 23, 42, 0.72);
+    --surface-card-soft: rgba(15, 23, 42, 0.58);
+    --surface-card-strong: rgba(15, 23, 42, 0.92);
+    --surface-border: rgba(148, 163, 184, 0.16);
+    --cta-bg: linear-gradient(135deg, #1e1b4b 0%, #312e81 52%, #4338ca 100%);
+    --cta-text: #f8fafc;
+    --cta-muted: rgba(248, 250, 252, 0.72);
+    --shadow-light: rgba(255, 255, 255, 0.05);
+    --shadow-light-strong: rgba(255, 255, 255, 0.08);
+    --shadow-dark: rgba(0, 0, 0, 0.4);
+  }
+
+  :root[data-theme="light"] {
+    /* Light Theme */
     --brand-50: #eff6ff;
     --brand-100: #dbeafe;
     --brand-500: #3b82f6;
@@ -43,46 +69,20 @@
     --shadow-dark: rgba(163, 177, 198, 0.4);
   }
 
-  :root[data-theme="dark"] {
-    /* Dark Theme */
-    --brand-50: #172554;
-    --brand-100: #1e3a8a;
-    --brand-500: #3b82f6;
-    --brand-600: #60a5fa;
-    --brand-900: #dbeafe;
-    --brand-950: #eff6ff;
-    --bg-main: #0f172a;
-    --text-main: #cbd5e1;
-    --text-heading: #f8fafc;
-    --glass-bg: rgba(15, 23, 42, 0.6);
-    --glass-border: rgba(255, 255, 255, 0.1);
-    --clay-bg: rgba(30, 41, 59, 0.6);
-    --surface-card: rgba(15, 23, 42, 0.72);
-    --surface-card-soft: rgba(15, 23, 42, 0.58);
-    --surface-card-strong: rgba(15, 23, 42, 0.92);
-    --surface-border: rgba(148, 163, 184, 0.16);
-    --cta-bg: linear-gradient(135deg, #1e1b4b 0%, #312e81 52%, #4338ca 100%);
-    --cta-text: #f8fafc;
-    --cta-muted: rgba(248, 250, 252, 0.72);
-    --shadow-light: rgba(255, 255, 255, 0.05);
-    --shadow-light-strong: rgba(255, 255, 255, 0.08);
-    --shadow-dark: rgba(0, 0, 0, 0.4);
-  }
-
   body {
     @apply font-sans antialiased transition-colors duration-300;
-    background-color: var(--color-bg-main, var(--color-bg-main));
-    color: var(--color-text-main, var(--color-text-main));
-    color-scheme: light;
+    background-color: var(--bg-main);
+    color: var(--text-main);
+    color-scheme: dark;
   }
 
-  :root[data-theme="dark"] body {
-    color-scheme: dark;
+  :root[data-theme="light"] body {
+    color-scheme: light;
   }
   
   h1, h2, h3, h4, h5, h6 {
     @apply font-display tracking-tight transition-colors duration-300;
-    color: var(--color-text-heading, var(--color-text-heading));
+    color: var(--text-heading);
   }
 }
 
@@ -94,11 +94,12 @@
     background: transparent;
   }
   .custom-scrollbar::-webkit-scrollbar-thumb {
-    background: rgba(43, 44, 52, 0.1);
+    background: var(--surface-border);
     border-radius: 10px;
   }
   .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background: rgba(43, 44, 52, 0.2);
+    background: var(--text-main);
+    opacity: 0.3;
   }
   
   .glass {
@@ -155,3 +156,6 @@
     color: var(--cta-muted);
   }
 }
+
+
+  

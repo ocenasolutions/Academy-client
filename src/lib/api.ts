@@ -2,6 +2,7 @@ import {
   Category,
   CourseAnnouncement,
   Certificate,
+  CommunityPost,
   Course,
   Enrollment,
   InstructorAnalytics,
@@ -173,6 +174,41 @@ function mapCertificate(serverCertificate: ServerCertificate): Certificate {
     courseId: serverCertificate.courseId,
     courseTitle: serverCertificate.course?.title || 'Course',
     courseThumbnail: serverCertificate.course?.thumbnailUrl,
+  };
+}
+
+function mapCommunityPost(serverPost: any): CommunityPost {
+  return {
+    id: serverPost.id,
+    title: serverPost.title,
+    body: serverPost.body,
+    likesCount: serverPost.likesCount ?? 0,
+    likedByCurrentUser: Boolean(serverPost.likedByCurrentUser),
+    createdAt: serverPost.createdAt,
+    updatedAt: serverPost.updatedAt,
+    courseId: serverPost.courseId ?? null,
+    courseTitle: serverPost.courseTitle ?? serverPost.course?.title ?? 'General Discussion',
+    author: {
+      id: serverPost.author.id,
+      firstName: serverPost.author.firstName,
+      lastName: serverPost.author.lastName,
+      role: serverPost.author.role,
+      avatarUrl: serverPost.author.avatarUrl,
+    },
+    comments: Array.isArray(serverPost.comments)
+      ? serverPost.comments.map((comment: any) => ({
+          id: comment.id,
+          message: comment.message,
+          createdAt: comment.createdAt,
+          author: {
+            id: comment.author.id,
+            firstName: comment.author.firstName,
+            lastName: comment.author.lastName,
+            role: comment.author.role,
+            avatarUrl: comment.author.avatarUrl,
+          },
+        }))
+      : [],
   };
 }
 
@@ -354,6 +390,13 @@ export async function addLessonDiscussionComment(enrollmentId: string, lessonId:
   }, { auth: true });
 }
 
+export async function askAiHelper(body: { message: string; questionContext: string; history?: any[] }) {
+  return request<{ reply: string }>('learning/ai-helper', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  }, { auth: true });
+}
+
 export async function gradeAssignmentSubmission(submissionId: string, body: { score: number; feedback?: string }) {
   return request<any>(`learning/assignment-submissions/${submissionId}/grade`, {
     method: 'PATCH',
@@ -364,6 +407,25 @@ export async function gradeAssignmentSubmission(submissionId: string, body: { sc
 export async function getMyCertificates() {
   const certificates = await request<any[]>('certificates/me', {}, { auth: true });
   return certificates.map(mapCertificate);
+}
+
+export async function getCommunityPosts(courseId?: string) {
+  const query = courseId ? `?courseId=${encodeURIComponent(courseId)}` : '';
+  const posts = await request<any[]>(`community/posts${query}`, {}, { auth: true });
+  return posts.map(mapCommunityPost);
+}
+
+export async function toggleCommunityPostLike(postId: string) {
+  return request<{ id: string; likesCount: number }>(`community/posts/${postId}/like`, {
+    method: 'POST',
+  }, { auth: true });
+}
+
+export async function addCommunityPostComment(postId: string, message: string) {
+  return request<any>(`community/posts/${postId}/comments`, {
+    method: 'POST',
+    body: JSON.stringify({ message }),
+  }, { auth: true });
 }
 
 export async function getInstructorAnalytics() {
@@ -383,7 +445,7 @@ export async function getUsers(role?: UserRole) {
   return users.map(mapUser);
 }
 
-export async function updateUser(id: string, body: Partial<Pick<User, 'firstName' | 'lastName' | 'headline' | 'bio' | 'avatar'>>) {
+export async function updateUser(id: string, body: Partial<Pick<User, 'firstName' | 'lastName' | 'headline' | 'bio' | 'avatar'> & { password?: string }>) {
   const user = await request<any>(`users/${id}`, {
     method: 'PATCH',
     body: JSON.stringify({
@@ -392,6 +454,7 @@ export async function updateUser(id: string, body: Partial<Pick<User, 'firstName
       headline: body.headline,
       bio: body.bio,
       avatarUrl: body.avatar,
+      password: body.password,
     }),
   }, { auth: true });
   return mapUser(user);

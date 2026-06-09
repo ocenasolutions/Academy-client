@@ -34,6 +34,39 @@ export interface LessonDiscussionComment {
   };
 }
 
+export interface CommunityPostComment {
+  id: string;
+  message: string;
+  createdAt: string;
+  author: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    role: UserRole;
+    avatarUrl?: string | null;
+  };
+}
+
+export interface CommunityPost {
+  id: string;
+  title: string;
+  body: string;
+  likesCount: number;
+  likedByCurrentUser?: boolean;
+  createdAt: string;
+  updatedAt: string;
+  courseId?: string | null;
+  courseTitle: string;
+  author: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    role: UserRole;
+    avatarUrl?: string | null;
+  };
+  comments: CommunityPostComment[];
+}
+
 export interface CourseAnnouncement {
   id: string;
   title: string;

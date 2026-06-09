@@ -33,7 +33,7 @@ export default function StudentSupportPage() {
           <h1 className="text-4xl font-display font-black text-[var(--color-text-heading)]">Support Center</h1>
           <p className="mt-2 text-[var(--color-text-main)]/70 font-medium">Create support requests and track replies from the Academy team.</p>
         </div>
-        <div className="rounded-2xl bg-rose-500/10 px-4 py-3 text-sm font-black text-rose-700 shadow-inner">
+        <div className="rounded-2xl bg-rose-500/10 px-4 py-3 text-sm font-black text-rose-600 dark:text-rose-400 shadow-inner">
           {tickets.length} ticket{tickets.length === 1 ? '' : 's'}
         </div>
       </div>
