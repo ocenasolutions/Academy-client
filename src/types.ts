@@ -37,11 +37,14 @@ export interface LessonDiscussionComment {
 export interface CommunityPostComment {
   id: string;
   message: string;
+  likesCount: number;
+  likedByCurrentUser?: boolean;
   createdAt: string;
   author: {
     id: string;
     firstName: string;
     lastName: string;
+    username?: string | null;
     role: UserRole;
     avatarUrl?: string | null;
   };
@@ -51,6 +54,7 @@ export interface CommunityPost {
   id: string;
   title: string;
   body: string;
+  mediaUrl?: string | null;
   likesCount: number;
   likedByCurrentUser?: boolean;
   createdAt: string;
@@ -61,6 +65,7 @@ export interface CommunityPost {
     id: string;
     firstName: string;
     lastName: string;
+    username?: string | null;
     role: UserRole;
     avatarUrl?: string | null;
   };
@@ -163,6 +168,7 @@ export interface User {
   status: string;
   headline?: string;
   bio?: string;
+  pushNotificationsEnabled?: boolean;
 }
 
 export interface Enrollment {
@@ -179,6 +185,7 @@ export interface Category {
   name: string;
   slug: string;
   coursesCount: number;
+  description?: string;
 }
 
 export interface Certificate {

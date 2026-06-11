@@ -121,10 +121,10 @@ export default function StudentCareers() {
           <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
             <div className="space-y-3">
               <div className="inline-flex items-center gap-2 rounded-full bg-brand-500/10 px-3.5 py-1.5 text-xs font-bold uppercase tracking-[0.2em] text-brand-500 border border-brand-500/20">
-                <Sparkles className="w-3.5 h-3.5" /> Career Integration Hub
+                <Sparkles className="w-3.5 h-3.5" /> Placement Integration Hub
               </div>
               <h1 className="text-3xl font-black tracking-tight text-[var(--text-heading)] md:text-[2.6rem]">
-                Careers & Placements
+                Placements
               </h1>
               <p className="max-w-2xl text-base leading-relaxed text-[var(--color-text-main)]/80">
                 Use your CourseForge skillsets to directly look up jobs on LinkedIn, get job recommendations, and review salary trends in your target field.

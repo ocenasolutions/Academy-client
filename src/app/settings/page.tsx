@@ -18,8 +18,8 @@ export default function Settings() {
   const [form, setForm] = useState({ firstName: '', lastName: '', email: '', headline: '', bio: '', avatar: '' });
   const [saving, setSaving] = useState(false);
 
-  // Preference Settings States (Synced with localStorage/Document Attribute)
   const [emailNotifications, setEmailNotifications] = useState(true);
+  const [pushNotifications, setPushNotifications] = useState(true);
   const [language, setLanguage] = useState('English (US)');
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
@@ -45,6 +45,7 @@ export default function Settings() {
 
     // Load preferences
     setEmailNotifications(localStorage.getItem('pref_email_notifications') !== 'false');
+    setPushNotifications(user.pushNotificationsEnabled !== false);
     setLanguage(localStorage.getItem('pref_language') || 'English (US)');
     setTwoFactorEnabled(localStorage.getItem('pref_two_step') === 'true');
     
@@ -53,10 +54,10 @@ export default function Settings() {
     setTheme(currentTheme);
   }, [user]);
 
-  const completion = Math.min(
-    100,
-    [form.firstName, form.lastName, form.email, form.headline, form.bio, form.avatar].filter((value) => value && value.trim()).length * 16.6,
-  );
+  const filledCount = [form.firstName, form.lastName, form.email, form.headline, form.bio, form.avatar].filter(
+    (value) => value && value.trim()
+  ).length;
+  const completion = Math.round((filledCount / 6) * 100);
 
   const handleToggleTheme = (checked: boolean) => {
     const nextTheme = checked ? 'dark' : 'light';
@@ -71,6 +72,18 @@ export default function Settings() {
     setEmailNotifications(checked);
     localStorage.setItem('pref_email_notifications', checked ? 'true' : 'false');
     addToast(checked ? 'Email notifications enabled.' : 'Email notifications disabled.', 'success');
+  };
+
+  const handleTogglePush = async (checked: boolean) => {
+    if (!user) return;
+    setPushNotifications(checked);
+    try {
+      await updateUser(user.id, { pushNotificationsEnabled: checked });
+      await refreshProfile();
+      addToast(checked ? 'Push notifications enabled.' : 'Push notifications disabled.', 'success');
+    } catch (error) {
+      addToast(error instanceof Error ? error.message : 'Failed to update push notification setting', 'error');
+    }
   };
 
   const handleToggleTwoFactor = (checked: boolean) => {
@@ -269,6 +282,13 @@ export default function Settings() {
                   helper={emailNotifications ? 'Receiving updates' : 'Muted'} 
                   checked={emailNotifications}
                   onChange={handleToggleEmail}
+                />
+                <SettingRow 
+                  icon={<Bell className="h-4 w-4" />} 
+                  title="Push notifications" 
+                  helper={pushNotifications ? 'Receiving push notifications' : 'Muted'} 
+                  checked={pushNotifications}
+                  onChange={handleTogglePush}
                 />
                 <SettingRow 
                   icon={<Globe className="h-4 w-4" />} 

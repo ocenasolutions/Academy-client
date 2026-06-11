@@ -16,13 +16,14 @@ import {
   UserCircle2,
   Briefcase,
   Users,
+  BookOpen,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useEffect, useState, type ReactNode } from 'react';
 import { getMyNotifications } from '@/lib/api';
 import { ThemeSwitcher } from './ThemeSwitcher';
 
-type SidebarKey = 'progress' | 'settings' | 'payments' | 'certificates' | 'support' | 'careers' | 'community' | 'community-links';
+type SidebarKey = 'progress' | 'settings' | 'payments' | 'certificates' | 'support' | 'careers' | 'community' | 'community-links' | 'courses';
 
 const SIDEBAR_ITEMS: Array<{
   key: SidebarKey;
@@ -31,9 +32,10 @@ const SIDEBAR_ITEMS: Array<{
   icon: typeof LayoutDashboard;
 }> = [
   { key: 'progress', label: 'Progress', href: '/dashboard/student/progress', icon: UserCircle2 },
+  { key: 'courses', label: 'Explore Courses', href: '/dashboard/student/courses', icon: BookOpen },
   { key: 'payments', label: 'Payments & Billing', href: '/dashboard/student/payments', icon: CreditCard },
   { key: 'certificates', label: 'Certificates', href: '/dashboard/student/certificates', icon: Shield },
-  { key: 'careers', label: 'Careers', href: '/dashboard/student/careers', icon: Briefcase },
+  { key: 'careers', label: 'Placements', href: '/dashboard/student/careers', icon: Briefcase },
   { key: 'community', label: 'CourseForge Community', href: '/dashboard/student/community', icon: Users },
   { key: 'community-links', label: 'Community', href: '/dashboard/student/community-links', icon: Users },
   { key: 'support', label: 'Support', href: '/dashboard/student/support', icon: LifeBuoy },

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { ArrowLeft, Award, CheckCircle2, ChevronLeft, ChevronRight, MessageSquare, Play, ChevronDown, ChevronUp, Volume2, Pause, BookOpen, Video, HelpCircle, ClipboardList, Radio, AlertCircle, Lightbulb, PanelLeft, PanelRight, X, Sparkles, Send, RefreshCw, Brain } from 'lucide-react';
@@ -23,6 +23,10 @@ export default function VideoLesson() {
   const [discussionMessage, setDiscussionMessage] = useState('');
   const [expandedModules, setExpandedModules] = useState<Record<string, boolean>>({});
   const [isPlayingSpeech, setIsPlayingSpeech] = useState(false);
+  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const isSpeakingRef = useRef(false);
+  const sentenceIndexRef = useRef(0);
+  const sentencesRef = useRef<string[]>([]);
   const [showBottomPanel, setShowBottomPanel] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [sidebarPosition, setSidebarPosition] = useState<'left' | 'right'>('left');
@@ -107,8 +111,13 @@ export default function VideoLesson() {
   // Clean up speech synthesis on unmount or lesson change
   useEffect(() => {
     return () => {
+      isSpeakingRef.current = false;
       if (typeof window !== 'undefined' && window.speechSynthesis) {
         window.speechSynthesis.cancel();
+      }
+      if (utteranceRef.current) {
+        utteranceRef.current.onend = null;
+        utteranceRef.current.onerror = null;
       }
     };
   }, [lessonId]);
@@ -127,28 +136,120 @@ export default function VideoLesson() {
     }
 
     if (isPlayingSpeech) {
+      isSpeakingRef.current = false;
       window.speechSynthesis.cancel();
+      if (utteranceRef.current) {
+        utteranceRef.current.onend = null;
+        utteranceRef.current.onerror = null;
+        utteranceRef.current = null;
+      }
       setIsPlayingSpeech(false);
       return;
     }
 
-    const textToRead = `${lessonData?.lesson?.title}. ${lessonData?.lesson?.description}. ` + sections.map((s: any) => `${s.heading}. ${s.body}`).join('\n\n');
+    // Helper to strip HTML/Markdown and normalize abbreviations for natural speech
+    const cleanText = (text: string) => {
+      return text
+        .replace(/<[^>]*>/g, '') // strip HTML
+        .replace(/[*#_`~\[\]\(\)]/g, '') // strip Markdown characters
+        .replace(/\be\.g\.\s*/gi, 'for example, ')
+        .replace(/\bi\.e\.\s*/gi, 'that is, ')
+        .replace(/\betc\.\s*/gi, 'and so on, ')
+        .replace(/\bvs\.\s*/gi, 'versus ')
+        .replace(/\s+/g, ' ') // normalize whitespace
+        .trim();
+    };
+
+    const rawText = `${lessonData?.lesson?.title || ''}. ${lessonData?.lesson?.description || ''}. ` + 
+      sections.map((s: any) => `${s.heading || ''}. ${s.body || ''}`).join('\n\n');
+
+    const textToRead = cleanText(rawText);
     if (!textToRead) {
       addToast('No reading content available to read.', 'warning');
       return;
     }
 
-    const utterance = new SpeechSynthesisUtterance(textToRead);
-    utterance.onend = () => {
-      setIsPlayingSpeech(false);
-    };
-    utterance.onerror = () => {
-      setIsPlayingSpeech(false);
+    // Split text into sentences, protecting decimals (like 49.8%) from being split
+    const sentences = textToRead.match(/(?!\s)[^.?!]+(?:[.?!](?![\d])|$)/g)?.map(s => s.trim()).filter(Boolean) || [];
+    if (sentences.length === 0) {
+      addToast('No readable text found.', 'warning');
+      return;
+    }
+
+    sentencesRef.current = sentences;
+    sentenceIndexRef.current = 0;
+    isSpeakingRef.current = true;
+    setIsPlayingSpeech(true);
+
+    // Cancel any previous speech
+    window.speechSynthesis.cancel();
+
+    const speakNext = () => {
+      if (!isSpeakingRef.current) return;
+
+      if (sentenceIndexRef.current >= sentencesRef.current.length) {
+        setIsPlayingSpeech(false);
+        isSpeakingRef.current = false;
+        return;
+      }
+
+      const sentenceText = sentencesRef.current[sentenceIndexRef.current];
+      const utterance = new SpeechSynthesisUtterance(sentenceText);
+      utteranceRef.current = utterance;
+      (window as any)._activeUtterance = utterance; // Pin to window to avoid Chrome GC bug
+
+      // Set human-friendly speech parameters
+      utterance.rate = 0.92; // Slightly slower, more natural speed
+      utterance.pitch = 1.0; // Balanced pitch
+
+      // Pick the best natural English voice if available
+      if (window.speechSynthesis.getVoices) {
+        const voices = window.speechSynthesis.getVoices();
+        
+        // Prioritize neural, natural, or high-quality English voices
+        const premiumVoice = voices.find(v => 
+          v.lang.startsWith('en') && 
+          (v.name.includes('Google') || v.name.includes('Natural') || v.name.includes('Neural') || v.name.includes('Premium'))
+        );
+        const fallbackVoice = voices.find(v => v.lang.startsWith('en'));
+
+        if (premiumVoice) {
+          utterance.voice = premiumVoice;
+        } else if (fallbackVoice) {
+          utterance.voice = fallbackVoice;
+        }
+      }
+
+      utterance.onend = () => {
+        if (isSpeakingRef.current) {
+          sentenceIndexRef.current += 1;
+          // Add a natural 350ms pause/breath between sentences so it sounds less like a continuous robot
+          setTimeout(() => {
+            speakNext();
+          }, 350);
+        }
+      };
+
+      utterance.onerror = (e) => {
+        if (e.error !== 'interrupted' && isSpeakingRef.current) {
+          sentenceIndexRef.current += 1;
+          setTimeout(() => {
+            speakNext();
+          }, 350);
+        }
+      };
+
+      window.speechSynthesis.speak(utterance);
+
+      if (window.speechSynthesis.paused) {
+        window.speechSynthesis.resume();
+      }
     };
 
-    setIsPlayingSpeech(true);
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(utterance);
+    // Use a small timeout to let the cancel complete asynchronously before speaking
+    setTimeout(() => {
+      speakNext();
+    }, 100);
   };
 
   const getLessonIcon = (type: string) => {

@@ -66,7 +66,7 @@ export function DashboardLayout({ children, role }: { children: ReactNode; role:
               { name: 'Overview', href: '/dashboard/student', icon: LayoutDashboard },
               { name: 'Progress', href: '/dashboard/student/progress', icon: BarChart },
               { name: 'Certificates', href: '/dashboard/student/certificates', icon: Award },
-              { name: 'Careers', href: '/dashboard/student/careers', icon: Briefcase },
+              { name: 'Placements', href: '/dashboard/student/careers', icon: Briefcase },
               { name: 'CourseForge Community', href: '/dashboard/student/community', icon: Users },
               { name: 'Community', href: '/dashboard/student/community-links', icon: Users },
               { name: 'Payments', href: '/dashboard/student/payments', icon: CreditCard },
@@ -81,6 +81,7 @@ export function DashboardLayout({ children, role }: { children: ReactNode; role:
               group: 'Teaching',
               items: [
                 { name: 'Overview', href: '/dashboard/instructor', icon: LayoutDashboard },
+                { name: 'Courses', href: '/dashboard/instructor/courses', icon: BookOpen },
                 { name: 'CourseForge Community', href: '/dashboard/student/community', icon: Users },
                 { name: 'Community', href: '/dashboard/student/community-links', icon: Users },
                 { name: 'Settings', href: '/settings', icon: Settings },
@@ -426,6 +427,9 @@ function getStudentSidebarKey(pathname: string) {
   }
   if (pathname.startsWith('/dashboard/student/progress')) {
     return 'progress';
+  }
+  if (pathname.startsWith('/dashboard/student/courses')) {
+    return 'courses';
   }
   if (pathname.startsWith('/settings')) {
     return 'settings';

@@ -16,7 +16,7 @@ import {
 } from '@/types';
 import { clearSession, readSession, writeSession } from './auth';
 
-const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api/v1').replace(/\/$/, '');
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL).replace(/\/$/, '');
 
 type Envelope<T> = {
   data: T;
@@ -147,6 +147,7 @@ function mapUser(serverUser: any): User {
     status: serverUser.status,
     headline: serverUser.headline,
     bio: serverUser.bio,
+    pushNotificationsEnabled: serverUser.pushNotificationsEnabled,
   };
 }
 
@@ -182,6 +183,7 @@ function mapCommunityPost(serverPost: any): CommunityPost {
     id: serverPost.id,
     title: serverPost.title,
     body: serverPost.body,
+    mediaUrl: serverPost.mediaUrl ?? null,
     likesCount: serverPost.likesCount ?? 0,
     likedByCurrentUser: Boolean(serverPost.likedByCurrentUser),
     createdAt: serverPost.createdAt,
@@ -189,23 +191,27 @@ function mapCommunityPost(serverPost: any): CommunityPost {
     courseId: serverPost.courseId ?? null,
     courseTitle: serverPost.courseTitle ?? serverPost.course?.title ?? 'General Discussion',
     author: {
-      id: serverPost.author.id,
-      firstName: serverPost.author.firstName,
-      lastName: serverPost.author.lastName,
-      role: serverPost.author.role,
-      avatarUrl: serverPost.author.avatarUrl,
+      id: serverPost.author?.id || serverPost.authorId || '',
+      firstName: serverPost.author?.firstName || 'Anonymous',
+      lastName: serverPost.author?.lastName || 'User',
+      username: serverPost.author?.username || null,
+      role: serverPost.author?.role || 'STUDENT',
+      avatarUrl: serverPost.author?.avatarUrl || null,
     },
     comments: Array.isArray(serverPost.comments)
       ? serverPost.comments.map((comment: any) => ({
           id: comment.id,
           message: comment.message,
+          likesCount: comment.likesCount ?? 0,
+          likedByCurrentUser: Boolean(comment.likedByCurrentUser),
           createdAt: comment.createdAt,
           author: {
-            id: comment.author.id,
-            firstName: comment.author.firstName,
-            lastName: comment.author.lastName,
-            role: comment.author.role,
-            avatarUrl: comment.author.avatarUrl,
+            id: comment.author?.id || comment.authorId || '',
+            firstName: comment.author?.firstName || 'Anonymous',
+            lastName: comment.author?.lastName || 'User',
+            username: comment.author?.username || null,
+            role: comment.author?.role || 'STUDENT',
+            avatarUrl: comment.author?.avatarUrl || null,
           },
         }))
       : [],
@@ -256,6 +262,11 @@ async function request<T>(path: string, init: RequestInit = {}, options: { auth?
   const session = readSession();
   const headers = new Headers(init.headers);
   headers.set('Content-Type', 'application/json');
+
+  const method = init.method ? init.method.toUpperCase() : 'GET';
+  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method) && !init.body) {
+    init.body = JSON.stringify({});
+  }
 
   if (options.auth && session?.accessToken) {
     headers.set('Authorization', `Bearer ${session.accessToken}`);
@@ -345,6 +356,7 @@ export async function getCategories() {
     name: category.name,
     slug: category.slug,
     coursesCount: category._count?.courses ?? 0,
+    description: category.description,
   })) as Category[];
 }
 
@@ -428,6 +440,20 @@ export async function addCommunityPostComment(postId: string, message: string) {
   }, { auth: true });
 }
 
+export async function createCommunityPost(title: string, body: string, courseId?: string, mediaUrl?: string) {
+  const post = await request<any>(`community/posts`, {
+    method: 'POST',
+    body: JSON.stringify({ title, body, courseId, mediaUrl }),
+  }, { auth: true });
+  return mapCommunityPost(post);
+}
+
+export async function toggleCommunityCommentLike(commentId: string) {
+  return request<{ id: string; likesCount: number }>(`community/comments/${commentId}/like`, {
+    method: 'POST',
+  }, { auth: true });
+}
+
 export async function getInstructorAnalytics() {
   const analytics = await request<any>('analytics/instructor', {}, { auth: true });
   return {
@@ -445,7 +471,7 @@ export async function getUsers(role?: UserRole) {
   return users.map(mapUser);
 }
 
-export async function updateUser(id: string, body: Partial<Pick<User, 'firstName' | 'lastName' | 'headline' | 'bio' | 'avatar'> & { password?: string }>) {
+export async function updateUser(id: string, body: Partial<Pick<User, 'firstName' | 'lastName' | 'headline' | 'bio' | 'avatar' | 'pushNotificationsEnabled'> & { password?: string }>) {
   const user = await request<any>(`users/${id}`, {
     method: 'PATCH',
     body: JSON.stringify({
@@ -455,6 +481,7 @@ export async function updateUser(id: string, body: Partial<Pick<User, 'firstName
       bio: body.bio,
       avatarUrl: body.avatar,
       password: body.password,
+      pushNotificationsEnabled: body.pushNotificationsEnabled,
     }),
   }, { auth: true });
   return mapUser(user);
