@@ -122,6 +122,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       clearSession();
       setUser(null);
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('theme');
+        document.documentElement.setAttribute('data-theme', 'light');
+        document.documentElement.style.colorScheme = 'light';
+      }
     },
     async refreshProfile() {
       try {

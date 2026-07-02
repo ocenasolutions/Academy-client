@@ -26,7 +26,7 @@ export default function VideoLesson() {
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
   const isSpeakingRef = useRef(false);
   const sentenceIndexRef = useRef(0);
-  const sentencesRef = useRef<string[]>([]);
+  const sentencesRef = useRef<any[]>([]);
   const [showBottomPanel, setShowBottomPanel] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [sidebarPosition, setSidebarPosition] = useState<'left' | 'right'>('left');
@@ -165,24 +165,44 @@ export default function VideoLesson() {
 
     const textToRead = cleanText(rawText);
     if (!textToRead) {
-      addToast('No reading content available to read.', 'warning');
+      addToast('No reading content available to read.', 'info');
       return;
     }
 
     // Split text into sentences, protecting decimals (like 49.8%) from being split
     const sentences = textToRead.match(/(?!\s)[^.?!]+(?:[.?!](?![\d])|$)/g)?.map(s => s.trim()).filter(Boolean) || [];
     if (sentences.length === 0) {
-      addToast('No readable text found.', 'warning');
+      addToast('No readable text found.', 'info');
       return;
     }
 
-    sentencesRef.current = sentences;
+    // Chunk sentences further by commas/semicolons/colons to add humanoid breathing/pauses
+    const speechChunks: Array<{ text: string; pauseMs: number }> = [];
+    for (const sentence of sentences) {
+      if (sentence.length < 60) {
+        speechChunks.push({ text: sentence, pauseMs: 650 });
+      } else {
+        const clauses = sentence.split(/(?<=[,;:])\s+/);
+        for (let i = 0; i < clauses.length; i++) {
+          const clause = clauses[i].trim();
+          if (!clause) continue;
+          const isLast = i === clauses.length - 1;
+          speechChunks.push({
+            text: clause,
+            pauseMs: isLast ? 650 : 350
+          });
+        }
+      }
+    }
+
+    sentencesRef.current = speechChunks;
     sentenceIndexRef.current = 0;
     isSpeakingRef.current = true;
     setIsPlayingSpeech(true);
 
     // Cancel any previous speech
     window.speechSynthesis.cancel();
+    (window as any)._allUtterances = []; // Prevent garbage collection of SpeechSynthesisUtterance
 
     const speakNext = () => {
       if (!isSpeakingRef.current) return;
@@ -193,40 +213,77 @@ export default function VideoLesson() {
         return;
       }
 
-      const sentenceText = sentencesRef.current[sentenceIndexRef.current];
-      const utterance = new SpeechSynthesisUtterance(sentenceText);
+      const chunk = sentencesRef.current[sentenceIndexRef.current];
+      if (!chunk || !chunk.text) {
+        sentenceIndexRef.current += 1;
+        speakNext();
+        return;
+      }
+
+      const utterance = new SpeechSynthesisUtterance(chunk.text);
       utteranceRef.current = utterance;
-      (window as any)._activeUtterance = utterance; // Pin to window to avoid Chrome GC bug
+      
+      // Pin utterance to a global array to avoid garbage collection bug in Chrome
+      if (!(window as any)._allUtterances) {
+        (window as any)._allUtterances = [];
+      }
+      (window as any)._allUtterances.push(utterance);
+      (window as any)._activeUtterance = utterance;
 
       // Set human-friendly speech parameters
-      utterance.rate = 0.92; // Slightly slower, more natural speed
-      utterance.pitch = 1.0; // Balanced pitch
+      utterance.rate = 0.88; // Slightly slower speed, feels more humanoid and thoughtful
+      utterance.pitch = 1.0; // Natural pitch
 
-      // Pick the best natural English voice if available
+      // Pick the best natural/humanoid English voice if available
       if (window.speechSynthesis.getVoices) {
         const voices = window.speechSynthesis.getVoices();
-        
-        // Prioritize neural, natural, or high-quality English voices
-        const premiumVoice = voices.find(v => 
-          v.lang.startsWith('en') && 
-          (v.name.includes('Google') || v.name.includes('Natural') || v.name.includes('Neural') || v.name.includes('Premium'))
-        );
-        const fallbackVoice = voices.find(v => v.lang.startsWith('en'));
+        const englishVoices = voices.filter(v => v.lang.toLowerCase().startsWith('en'));
 
-        if (premiumVoice) {
-          utterance.voice = premiumVoice;
-        } else if (fallbackVoice) {
-          utterance.voice = fallbackVoice;
+        if (englishVoices.length > 0) {
+          // Score each voice to find the most natural/humanoid option
+          const scoredVoices = englishVoices.map(voice => {
+            let score = 0;
+            const name = voice.name.toLowerCase();
+
+            // High scores for online/neural/premium/natural voices
+            if (name.includes('natural')) score += 150;
+            if (name.includes('neural')) score += 150;
+            if (name.includes('google')) score += 120;
+            if (name.includes('online')) score += 100;
+            if (name.includes('premium')) score += 90;
+            if (name.includes('siri')) score += 90;
+            if (name.includes('samantha')) score += 80;
+            if (name.includes('daniel')) score += 80;
+
+            // Moderate scores for decent OS-level voices (Apple/Microsoft)
+            if (name.includes('microsoft') || name.includes('david') || name.includes('zira') || name.includes('hazel')) score += 50;
+            if (name.includes('moira') || name.includes('karen')) score += 50;
+
+            // English locale preferences
+            if (voice.lang.toLowerCase() === 'en-us') score += 10;
+            if (voice.lang.toLowerCase() === 'en-gb') score += 5;
+
+            // Heavily penalize extremely metallic/robotic Linux synthesizers
+            if (name.includes('espeak')) score -= 150;
+            if (name.includes('festival')) score -= 150;
+            if (name.includes('mbrola')) score -= 150;
+
+            return { voice, score };
+          });
+
+          // Sort descending by score
+          scoredVoices.sort((a, b) => b.score - a.score);
+          utterance.voice = scoredVoices[0].voice;
         }
       }
 
       utterance.onend = () => {
         if (isSpeakingRef.current) {
           sentenceIndexRef.current += 1;
-          // Add a natural 350ms pause/breath between sentences so it sounds less like a continuous robot
+          // Use the chunk's custom pause duration to simulate a human breath/pause
           setTimeout(() => {
             speakNext();
-          }, 350);
+          }, chunk.pauseMs || 500);
         }
       };
 
@@ -235,7 +292,7 @@ export default function VideoLesson() {
           sentenceIndexRef.current += 1;
           setTimeout(() => {
             speakNext();
-          }, 350);
+          }, chunk.pauseMs || 500);
         }
       };
 
@@ -373,24 +430,31 @@ export default function VideoLesson() {
   };
 
   if (!lessonData) {
-    return <div className="min-h-screen bg-gray-950 text-white p-10">Loading lesson...</div>;
+    return (
+      <div className="min-h-screen bg-[var(--bg-main)] text-[var(--color-text-main)] flex items-center justify-center p-10 font-sans">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 rounded-full border-4 border-blue-500/20 border-t-blue-500 animate-spin" />
+          <p className="text-sm font-semibold tracking-wide animate-pulse">Loading lesson...</p>
+        </div>
+      </div>
+    );
   }
 
   const renderSidebar = () => {
     if (!sidebarOpen) return null;
     return (
-      <div className={`w-80 bg-[#090d16] ${sidebarPosition === 'left' ? 'border-r' : 'border-l'} border-slate-900 flex flex-col shrink-0 select-none z-20`}>
-        <div className="p-6 border-b border-slate-900 flex items-center justify-between">
+      <div className={`w-80 bg-[var(--surface-card)] ${sidebarPosition === 'left' ? 'border-r' : 'border-l'} border-[var(--surface-border)] flex flex-col shrink-0 select-none z-20`}>
+        <div className="p-6 border-b border-[var(--surface-border)] flex items-center justify-between">
           <div className="flex-1">
-            <h3 className="font-bold text-sm text-white tracking-wide">Course Content</h3>
+            <h3 className="font-bold text-sm text-[var(--text-heading)] tracking-wide">Course Content</h3>
             <div className="flex flex-col mt-2 gap-1.5">
-              <div className="w-full bg-slate-900 h-1 rounded-full overflow-hidden">
+              <div className="w-full bg-[var(--surface-card-soft)] h-1 rounded-full overflow-hidden">
                 <div 
                   className="bg-blue-600 h-full rounded-full transition-all duration-300"
                   style={{ width: `${Math.round(enrollment?.progressPercent ?? 0)}%` }}
                 />
               </div>
-              <p className="text-[10px] font-semibold text-slate-400">{Math.round(enrollment?.progressPercent ?? 0)}% Completed</p>
+              <p className="text-[10px] font-semibold text-[var(--text-main)]/70">{Math.round(enrollment?.progressPercent ?? 0)}% Completed</p>
             </div>
           </div>
           <div className="flex items-center gap-1.5 ml-3 shrink-0">
@@ -401,7 +465,7 @@ export default function VideoLesson() {
                 setSidebarPosition(nextPos);
                 localStorage.setItem('course_sidebar_position', nextPos);
               }}
-              className="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-slate-900 transition-colors"
+              className="text-[var(--text-main)] hover:text-[var(--text-heading)] p-1.5 rounded-lg hover:bg-[var(--surface-card-soft)] transition-colors"
               title={sidebarPosition === 'left' ? "Move to Right" : "Move to Left"}
             >
               {sidebarPosition === 'left' ? <PanelRight className="w-4 h-4" /> : <PanelLeft className="w-4 h-4" />}
@@ -412,79 +476,79 @@ export default function VideoLesson() {
                 setSidebarOpen(false);
                 localStorage.setItem('course_sidebar_open', 'false');
               }}
-              className="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-slate-900 transition-colors"
+              className="text-[var(--text-main)] hover:text-[var(--text-heading)] p-1.5 rounded-lg hover:bg-[var(--surface-card-soft)] transition-colors"
               title="Collapse Sidebar"
             >
               <X className="w-4 h-4" />
             </button>
           </div>
         </div>
-        <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-800 scrollbar-track-transparent">
+        <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-[var(--surface-border)] scrollbar-track-transparent">
           {(enrollment?.course.modules ?? []).map((module: any) => {
             const isModuleCompleted = module.lessons.length > 0 && module.lessons.every((lesson: any) => completedLessonIds.has(lesson.id));
             const isExpanded = !!expandedModules[module.id];
             return (
-              <div key={module.id} className="border-b border-slate-900">
+              <div key={module.id} className="border-b border-[var(--surface-border)]">
                 <button 
                   onClick={() => toggleModule(module.id)}
-                  className={`w-full p-4 font-semibold text-xs flex items-center justify-between text-left transition-colors hover:bg-slate-900/40 bg-[#090d16] text-slate-200`}
+                  className={`w-full p-4 font-semibold text-xs flex items-center justify-between text-left transition-colors hover:bg-[var(--surface-card-soft)] bg-[var(--surface-card)] text-[var(--text-heading)]`}
                 >
                   <div className="flex items-center gap-2">
                     <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isModuleCompleted ? 'bg-emerald-500' : 'bg-blue-500'}`} />
                     <span>{module.title}</span>
                   </div>
                   {isExpanded ? (
-                    <ChevronUp className="w-4 h-4 text-slate-450 shrink-0" />
+                    <ChevronUp className="w-4 h-4 text-[var(--text-main)] shrink-0" />
                   ) : (
-                    <ChevronDown className="w-4 h-4 text-slate-450 shrink-0" />
+                    <ChevronDown className="w-4 h-4 text-[var(--text-main)] shrink-0" />
                   )}
                 </button>
                 {isExpanded && (
-                  <div className="bg-[#05080e]">
+                  <div className="bg-[var(--surface-card-soft)]/40">
                     {module.lessons.map((lesson: any) => {
                       const active = lesson.id === lessonId;
                       const completed = completedLessonIds.has(lesson.id);
 
                       // Icon selection based on lesson type
                       let LessonIcon = BookOpen;
-                      let iconColor = 'text-slate-400';
-                      let bgTheme = 'bg-slate-900/40 border-slate-800/60';
+                      let iconColor = 'text-[var(--text-main)]/60';
+                      let bgTheme = 'bg-[var(--surface-card-soft)] border-[var(--surface-border)]';
                       
                       const lType = lesson.type?.toUpperCase();
                       if (lType === 'VIDEO') {
                         LessonIcon = Video;
-                        iconColor = completed ? 'text-emerald-400' : active ? 'text-blue-400' : 'text-blue-400/80';
+                        iconColor = completed ? 'text-emerald-500' : active ? 'text-blue-500' : 'text-blue-500/80';
                       } else if (lType === 'READING') {
                         LessonIcon = BookOpen;
-                        iconColor = completed ? 'text-emerald-440' : active ? 'text-blue-400' : 'text-purple-400/80';
+                        iconColor = completed ? 'text-emerald-500' : active ? 'text-blue-500' : 'text-purple-500/80';
                       } else if (lType === 'QUIZ') {
                         LessonIcon = HelpCircle;
-                        iconColor = completed ? 'text-emerald-440' : active ? 'text-blue-400' : 'text-amber-400/80';
+                        iconColor = completed ? 'text-emerald-500' : active ? 'text-blue-500' : 'text-amber-500/80';
                       } else if (lType === 'ASSIGNMENT') {
                         LessonIcon = ClipboardList;
-                        iconColor = completed ? 'text-emerald-440' : active ? 'text-blue-400' : 'text-teal-400/80';
+                        iconColor = completed ? 'text-emerald-500' : active ? 'text-blue-500' : 'text-teal-500/80';
                       }
 
                       if (completed) {
-                        bgTheme = 'bg-emerald-950/15 border-emerald-900/30';
+                        bgTheme = 'bg-emerald-500/10 border-emerald-550/20';
                       } else if (active) {
-                        bgTheme = 'bg-blue-950/20 border-blue-900/40';
+                        bgTheme = 'bg-blue-500/10 border-blue-550/30';
                       }
 
                       return (
                         <Link 
                           key={lesson.id} 
                           href={`/course/${courseId}/lesson/${lesson.id}`} 
-                          className={`flex items-center gap-3.5 py-3.5 px-5 cursor-pointer hover:bg-slate-900/40 transition-colors border-l-[3px] ${
+                          className={`flex items-center gap-3.5 py-3.5 px-5 cursor-pointer hover:bg-[var(--surface-card-soft)]/50 transition-colors border-l-[3px] ${
                             active 
-                              ? 'bg-blue-950/5 border-blue-500' 
+                              ? 'bg-blue-500/5 border-blue-500' 
                               : 'border-transparent'
                           }`}
                         >
                           <div className={`w-9 h-9 rounded-xl border flex items-center justify-center shrink-0 transition-all relative ${bgTheme}`}>
                             <LessonIcon className={`w-[18px] h-[18px] ${iconColor}`} />
                             {completed && (
-                              <div className="absolute -bottom-1 -right-1 bg-emerald-600 rounded-full p-0.5 border border-[#090d16] shadow-sm flex items-center justify-center">
+                              <div className="absolute -bottom-1 -right-1 bg-emerald-600 rounded-full p-0.5 border border-[var(--surface-card)] shadow-sm flex items-center justify-center">
                                 <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="4">
                                   <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                 </svg>
@@ -494,10 +558,10 @@ export default function VideoLesson() {
                           <div className="flex-1 min-w-0">
                             <div className={`text-[13px] font-bold tracking-wide leading-snug truncate ${
                               active 
-                                ? 'text-blue-400 font-extrabold' 
-                                : 'text-slate-350 hover:text-white'
+                                ? 'text-blue-500 font-extrabold' 
+                                : 'text-[var(--text-main)]/90 hover:text-[var(--text-heading)]'
                             }`}>{lesson.title}</div>
-                            <div className="text-[10px] text-slate-500 flex items-center gap-1.5 mt-1 font-semibold uppercase tracking-wider">
+                            <div className="text-[10px] text-[var(--text-main)]/50 flex items-center gap-1.5 mt-1 font-semibold uppercase tracking-wider">
                               <span className={active ? 'text-blue-500/70' : ''}>{lesson.type?.toLowerCase()}</span>
                               <span>•</span>
                               <span>{lesson.duration || '5m'}</span>
@@ -517,14 +581,14 @@ export default function VideoLesson() {
   };
 
   return (
-    <div className="flex h-screen bg-[#030712] text-white font-sans overflow-hidden">
+    <div className="flex h-screen bg-[var(--bg-main)] text-[var(--text-main)] font-sans overflow-hidden">
       {sidebarPosition === 'left' && renderSidebar()}
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col relative overflow-hidden bg-[#030712]">
+      <div className="flex-1 flex flex-col relative overflow-hidden bg-[var(--bg-main)]">
         
         {/* Top Header */}
-        <div className="h-16 border-b border-slate-900 flex items-center justify-between px-6 bg-[#030712] z-10 select-none">
+        <div className="h-16 border-b border-[var(--surface-border)] flex items-center justify-between px-6 bg-[var(--surface-card)] z-10 select-none">
           <div className="flex items-center gap-4">
             <button 
               onClick={() => {
@@ -532,16 +596,16 @@ export default function VideoLesson() {
                 setSidebarOpen(nextOpen);
                 localStorage.setItem('course_sidebar_open', String(nextOpen));
               }}
-              className="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-slate-900 transition-colors"
+              className="text-[var(--text-main)]/80 hover:text-[var(--text-heading)] p-1.5 rounded-lg hover:bg-[var(--surface-card-soft)] transition-colors"
               title={sidebarOpen ? "Collapse Sidebar" : "Expand Sidebar"}
             >
               {sidebarOpen ? <PanelLeft className="w-5 h-5" /> : <PanelRight className="w-5 h-5" />}
             </button>
-            <Link href={`/courses/${courseId}`} className="text-slate-400 hover:text-white flex items-center gap-2 text-sm font-medium transition-colors">
+            <Link href={`/courses/${courseId}`} className="text-[var(--text-main)]/80 hover:text-[var(--text-heading)] flex items-center gap-2 text-sm font-medium transition-colors">
               &lt;&nbsp;&nbsp;Back to Course
             </Link>
           </div>
-          <div className="text-sm font-medium text-slate-350">{lessonData.module.title}</div>
+          <div className="text-sm font-medium text-[var(--text-main)]/80">{lessonData.module.title}</div>
           <button
             onClick={async () => {
               if (!enrollment) return;
@@ -597,7 +661,7 @@ export default function VideoLesson() {
               }
             }
           }}
-          className="flex-1 bg-[#030712] relative overflow-auto scrollbar-thin scrollbar-thumb-slate-800 scrollbar-track-transparent"
+          className="flex-1 bg-[var(--bg-main)] relative overflow-auto scrollbar-thin scrollbar-thumb-[var(--surface-border)] scrollbar-track-transparent"
         >
           {lessonType === 'video' && (
             <div className="h-full flex items-center justify-center relative">
@@ -610,7 +674,7 @@ export default function VideoLesson() {
               <div className="absolute bottom-0 inset-x-0 h-16 bg-gradient-to-t from-black/80 to-transparent flex items-end px-6 pb-4">
                 <div className="w-full">
                   <div className="w-full h-1 bg-gray-600 rounded-full mb-3 cursor-pointer">
-                    <div className="w-1/3 h-full bg-blue-500 rounded-full relative">
+                     <div className="w-1/3 h-full bg-blue-500 rounded-full relative">
                       <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full shadow"></div>
                     </div>
                   </div>
@@ -627,23 +691,23 @@ export default function VideoLesson() {
             <div className="mx-auto max-w-4xl w-full px-8 py-12">
               <div className="mb-8 flex items-start justify-between gap-6">
                 <div className="flex-1">
-                  <div className="text-xs font-black uppercase tracking-[0.2em] text-blue-400">Reading Lesson</div>
-                  <h2 className="mt-1 text-2xl font-black text-white">{lessonData.lesson.title}</h2>
-                  <p className="mt-3 text-lg text-gray-300">{lessonData.lesson.description}</p>
+                  <div className="text-xs font-black uppercase tracking-[0.2em] text-blue-500">Reading Lesson</div>
+                  <h2 className="mt-1 text-2xl font-black text-[var(--text-heading)]">{lessonData.lesson.title}</h2>
+                  <p className="mt-3 text-lg text-[var(--text-main)]/90">{lessonData.lesson.description}</p>
                 </div>
                 <button
                   onClick={toggleSpeech}
-                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-900 bg-[#090d16] hover:bg-slate-900 text-sm font-semibold text-white transition-all shadow-md shrink-0 hover:border-blue-500/50"
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[var(--surface-border)] bg-[var(--surface-card)] hover:bg-[var(--surface-card-soft)] text-sm font-semibold text-[var(--text-heading)] transition-all shadow-md shrink-0 hover:border-blue-500/50"
                   title="Listen to this lesson read aloud"
                 >
                   {isPlayingSpeech ? (
                     <>
-                      <Pause className="w-4 h-4 text-blue-500 animate-pulse" />
+                      <Pause className="w-4 h-4 text-blue-550 animate-pulse" />
                       <span>Pause Audio</span>
                     </>
                   ) : (
                     <>
-                      <Volume2 className="w-4 h-4 text-blue-400" />
+                      <Volume2 className="w-4 h-4 text-blue-500" />
                       <span>Listen Lesson</span>
                     </>
                   )}
@@ -651,12 +715,12 @@ export default function VideoLesson() {
               </div>
               <div className="space-y-6">
                 {sections.map((section: any, index: number) => (
-                  <div key={`${section.heading}-${index}`} className="rounded-3xl border border-slate-900 bg-[#090d16]/70 p-6 overflow-hidden">
-                    <h3 className="text-xl font-black text-white">{section.heading}</h3>
-                    <p className="mt-3 leading-8 text-gray-300">{section.body}</p>
+                  <div key={`${section.heading}-${index}`} className="rounded-3xl border border-[var(--surface-border)] bg-[var(--surface-card)] p-6 overflow-hidden">
+                    <h3 className="text-xl font-black text-[var(--text-heading)]">{section.heading}</h3>
+                    <p className="mt-3 leading-8 text-[var(--text-main)]/90">{section.body}</p>
                     
                     {(section.imageUrl || section.image) && (
-                      <div className="mt-6 overflow-hidden rounded-2xl border border-slate-800/80 bg-black/40 shadow-inner">
+                      <div className="mt-6 overflow-hidden rounded-2xl border border-[var(--surface-border)] bg-[var(--surface-card-soft)]/50 shadow-inner">
                         <img 
                           src={section.imageUrl || section.image} 
                           alt={section.heading} 
@@ -666,14 +730,14 @@ export default function VideoLesson() {
                     )}
 
                     {section.diagram && (
-                      <div className="mt-6 rounded-2xl bg-black/40 border border-slate-900 p-6 flex flex-col md:flex-row items-center justify-center gap-4 flex-wrap">
+                      <div className="mt-6 rounded-2xl bg-[var(--surface-card-soft)]/30 border border-[var(--surface-border)] p-6 flex flex-col md:flex-row items-center justify-center gap-4 flex-wrap">
                         {section.diagram.split('->').map((step: string, sIdx: number, arr: any[]) => (
                           <div key={sIdx} className="flex flex-col md:flex-row items-center gap-4">
-                            <div className="px-5 py-3 rounded-xl bg-blue-500/10 border border-blue-500/30 text-white font-bold text-sm tracking-wide text-center shadow-lg min-w-[140px]">
+                            <div className="px-5 py-3 rounded-xl bg-blue-500/10 border border-blue-500/30 text-[var(--text-heading)] font-bold text-sm tracking-wide text-center shadow-lg min-w-[140px]">
                               {step.trim()}
                             </div>
                             {sIdx < arr.length - 1 && (
-                              <span className="text-blue-400 font-extrabold rotate-90 md:rotate-0 text-xl">
+                              <span className="text-blue-500 font-extrabold rotate-90 md:rotate-0 text-xl">
                                 →
                               </span>
                             )}
@@ -701,23 +765,23 @@ export default function VideoLesson() {
                   return (
                     <div className="mx-auto max-w-3xl space-y-8 animate-in fade-in duration-200">
                       {/* Results Dashboard Header */}
-                      <div className="rounded-2xl border border-slate-900 bg-[#090d16] p-8 shadow-2xl flex flex-col md:flex-row items-center justify-between gap-6">
+                      <div className="rounded-2xl border border-[var(--surface-border)] bg-[var(--surface-card)] p-8 shadow-2xl flex flex-col md:flex-row items-center justify-between gap-6">
                         <div className="space-y-2 text-center md:text-left">
-                          <div className="inline-flex items-center gap-2 rounded-full bg-slate-900/60 border border-slate-800/80 px-3.5 py-1.5 text-xs font-bold uppercase tracking-[0.15em] text-blue-400 font-mono">
+                          <div className="inline-flex items-center gap-2 rounded-full bg-[var(--surface-card-soft)] border border-[var(--surface-border)] px-3.5 py-1.5 text-xs font-bold uppercase tracking-[0.15em] text-blue-500 font-mono">
                             <Award className="w-3.5 h-3.5" /> QUIZ COMPLETED
                           </div>
-                          <h3 className="text-2xl font-bold tracking-tight text-white mt-3">{lessonData.lesson.title}</h3>
-                          <p className="text-xs text-slate-400">
-                            Passing Score Requirement: <strong className="text-blue-400">{lessonActivity.quiz.passingScore ?? 70}%</strong>
+                          <h3 className="text-2xl font-bold tracking-tight text-[var(--text-heading)] mt-3">{lessonData.lesson.title}</h3>
+                          <p className="text-xs text-[var(--text-main)]/70">
+                            Passing Score Requirement: <strong className="text-blue-555">{lessonActivity.quiz.passingScore ?? 70}%</strong>
                           </p>
                         </div>
 
-                        <div className="flex flex-col sm:flex-row items-center gap-6 bg-slate-950/40 border border-slate-900/60 p-6 rounded-2xl">
+                        <div className="flex flex-col sm:flex-row items-center gap-6 bg-[var(--surface-card-soft)]/50 border border-[var(--surface-border)] p-6 rounded-2xl">
                           <div className="text-center">
-                            <div className="text-3xl font-black text-white">{latestAttempt.score}%</div>
-                            <div className="text-[10px] text-slate-400 mt-1 uppercase tracking-wider font-semibold">Your Score</div>
+                            <div className="text-3xl font-black text-[var(--text-heading)]">{latestAttempt.score}%</div>
+                            <div className="text-[10px] text-[var(--text-main)]/60 mt-1 uppercase tracking-wider font-semibold">Your Score</div>
                           </div>
-                          <div className="h-px sm:h-10 w-10 sm:w-px bg-slate-900" />
+                          <div className="h-px sm:h-10 w-10 sm:w-px bg-[var(--surface-border)]" />
                           <div className="text-center">
                             <span className={`inline-flex items-center rounded-full px-3.5 py-1.5 text-xs font-bold ${
                               passed
@@ -726,25 +790,25 @@ export default function VideoLesson() {
                             }`}>
                               {passed ? 'PASSED' : 'FAILED'}
                             </span>
-                            <div className="text-[10px] text-slate-400 mt-1 uppercase tracking-wider font-semibold">Status</div>
+                            <div className="text-[10px] text-[var(--text-main)]/60 mt-1 uppercase tracking-wider font-semibold">Status</div>
                           </div>
                         </div>
                       </div>
 
                       {/* Detailed Answers Overview */}
                       <div className="space-y-6">
-                        <h4 className="text-sm font-bold uppercase tracking-wider text-slate-400 px-1">Questions Summary & Explanations</h4>
+                        <h4 className="text-sm font-bold uppercase tracking-wider text-[var(--text-main)]/80 px-1">Questions Summary & Explanations</h4>
                         
                         {quizQuestions.map((question: any, qIdx: number) => {
                           const userSelectedOption = attemptAnswers[qIdx];
                           const isCorrect = userSelectedOption === question.correctIndex;
 
                           return (
-                            <div key={qIdx} className={`rounded-xl border p-6 bg-[#090d16] space-y-4 ${
+                            <div key={qIdx} className={`rounded-xl border p-6 bg-[var(--surface-card)] space-y-4 ${
                               isCorrect ? 'border-emerald-500/20' : 'border-rose-500/20'
                             }`}>
                               <div className="flex items-center justify-between">
-                                <span className="text-xs font-bold text-slate-500 font-mono">QUESTION {qIdx + 1} OF {quizQuestions.length}</span>
+                                <span className="text-xs font-bold text-[var(--text-main)]/50 font-mono">QUESTION {qIdx + 1} OF {quizQuestions.length}</span>
                                 <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full ${
                                   isCorrect
                                     ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
@@ -755,20 +819,20 @@ export default function VideoLesson() {
                                 </span>
                               </div>
 
-                              <div className="text-sm font-bold text-white leading-relaxed">{question.prompt}</div>
+                              <div className="text-sm font-bold text-[var(--text-heading)] leading-relaxed">{question.prompt}</div>
 
                               <div className="space-y-2">
                                 {(question.options ?? []).map((option: string, oIdx: number) => {
                                   const wasSelected = userSelectedOption === oIdx;
                                   const isRightAnswer = oIdx === question.correctIndex;
 
-                                  let optStyle = "border-slate-900 bg-slate-950/20 text-slate-450";
+                                  let optStyle = "border-[var(--surface-border)] bg-[var(--surface-card-soft)]/30 text-[var(--text-main)]";
                                   if (wasSelected) {
                                     optStyle = isRightAnswer 
-                                      ? "border-emerald-500 bg-emerald-500/10 text-emerald-300 font-semibold" 
-                                      : "border-rose-500 bg-rose-500/10 text-rose-350 font-semibold";
+                                      ? "border-emerald-500 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-semibold" 
+                                      : "border-rose-500 bg-rose-500/10 text-rose-600 dark:text-rose-400 font-semibold";
                                   } else if (isRightAnswer) {
-                                    optStyle = "border-emerald-500/40 bg-emerald-500/5 text-emerald-400";
+                                    optStyle = "border-emerald-500/40 bg-emerald-500/5 text-emerald-650 dark:text-emerald-350";
                                   }
 
                                   return (
@@ -776,7 +840,7 @@ export default function VideoLesson() {
                                       <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[10px] font-bold ${
                                         wasSelected
                                           ? isRightAnswer ? 'bg-emerald-500 border-emerald-400 text-white' : 'bg-rose-500 border-rose-400 text-white'
-                                          : isRightAnswer ? 'bg-emerald-500/20 border-emerald-500/30 text-emerald-350' : 'border-slate-800 text-slate-500'
+                                          : isRightAnswer ? 'bg-emerald-500/20 border-emerald-500/30 text-emerald-600 dark:text-emerald-350' : 'border-[var(--surface-border)] text-[var(--text-main)]/50'
                                       }`}>
                                         {String.fromCharCode(65 + oIdx)}
                                       </span>
@@ -787,8 +851,8 @@ export default function VideoLesson() {
                               </div>
 
                               {question.explanation && (
-                                <div className="mt-4 p-4 rounded-lg bg-slate-950/40 border border-slate-900 text-xs leading-relaxed text-slate-300">
-                                  <span className="font-bold text-indigo-400 block mb-1">Explanation</span>
+                                <div className="mt-4 p-4 rounded-lg bg-[var(--surface-card-soft)]/50 border border-[var(--surface-border)] text-xs leading-relaxed text-[var(--text-main)]/90">
+                                  <span className="font-bold text-indigo-500 dark:text-indigo-400 block mb-1">Explanation</span>
                                   {question.explanation}
                                 </div>
                               )}
@@ -821,14 +885,14 @@ export default function VideoLesson() {
                   <div className="relative mx-auto max-w-3xl animate-in fade-in duration-200">
                     
                     {/* Compact Quiz Player */}
-                    <div className="rounded-2xl border border-slate-900 bg-[#090d16] p-6 md:p-8 shadow-2xl flex flex-col justify-between min-h-[480px]">
+                    <div className="rounded-2xl border border-[var(--surface-border)] bg-[var(--surface-card)] p-6 md:p-8 shadow-2xl flex flex-col justify-between min-h-[480px]">
                       <div className="space-y-6">
-                        <div className="flex items-center justify-between pb-4 border-b border-slate-900 gap-4">
+                        <div className="flex items-center justify-between pb-4 border-b border-[var(--surface-border)] gap-4">
                           <div className="space-y-1">
-                            <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-900/60 border border-slate-800/80 px-3 py-1 text-[10px] font-black uppercase tracking-[0.15em] text-blue-405 font-mono">
-                              <HelpCircle className="w-3.5 h-3.5 text-blue-400" /> Quiz Attempt
+                            <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--surface-card-soft)] border border-[var(--surface-border)] px-3 py-1 text-[10px] font-black uppercase tracking-[0.15em] text-blue-500 font-mono">
+                              <HelpCircle className="w-3.5 h-3.5 text-blue-500" /> Quiz Attempt
                             </span>
-                            <h3 className="text-lg font-bold text-white mt-2 leading-tight">{lessonData.lesson.title}</h3>
+                            <h3 className="text-lg font-bold text-[var(--text-heading)] mt-2 leading-tight">{lessonData.lesson.title}</h3>
                           </div>
                           
                           <div className="flex items-center gap-3 shrink-0">
@@ -842,14 +906,14 @@ export default function VideoLesson() {
                             </button>
 
                             <div className="text-right">
-                              <span className="text-[10px] font-bold text-indigo-400 block font-mono">QUESTION</span>
-                              <span className="text-sm font-black text-white font-mono">{activeQuestionIndex + 1} / {quizQuestions.length}</span>
+                              <span className="text-[10px] font-bold text-indigo-500 dark:text-indigo-400 block font-mono">QUESTION</span>
+                              <span className="text-sm font-black text-[var(--text-heading)] font-mono">{activeQuestionIndex + 1} / {quizQuestions.length}</span>
                             </div>
                           </div>
                         </div>
 
                         {/* Progress Bar */}
-                        <div className="w-full bg-slate-950 h-1 rounded-full overflow-hidden">
+                        <div className="w-full bg-[var(--surface-card-soft)] h-1 rounded-full overflow-hidden">
                           <div 
                             className="bg-blue-500 h-full transition-all duration-300"
                             style={{ width: `${((activeQuestionIndex + 1) / quizQuestions.length) * 100}%` }}
@@ -858,7 +922,7 @@ export default function VideoLesson() {
 
                         {currentQuestion && (
                           <div className="space-y-6 pt-2">
-                            <h4 className="text-base font-bold text-white leading-relaxed">{currentQuestion.prompt}</h4>
+                            <h4 className="text-base font-bold text-[var(--text-heading)] leading-relaxed">{currentQuestion.prompt}</h4>
                             
                             <div className="grid grid-cols-1 gap-3">
                               {(currentQuestion.options ?? []).map((option: string, oIdx: number) => {
@@ -870,22 +934,22 @@ export default function VideoLesson() {
                                     onClick={() => setQuizSelection(prev => ({ ...prev, [activeQuestionIndex]: oIdx }))}
                                     className={`w-full rounded-xl border p-4 text-left text-sm font-medium transition-all duration-200 flex items-center justify-between ${
                                       isSelected
-                                        ? 'border-blue-500 bg-blue-500/10 text-white shadow-[0_0_15px_rgba(59,130,246,0.1)]'
-                                        : 'border-slate-800/80 bg-[#0a0f1d]/40 text-slate-350 hover:bg-[#111827]/60 hover:border-slate-800'
+                                        ? 'border-blue-500 bg-blue-500/10 text-[var(--text-heading)] shadow-[0_0_15px_rgba(59,130,246,0.1)]'
+                                        : 'border-[var(--surface-border)] bg-[var(--surface-card-soft)]/30 text-[var(--text-main)]/90 hover:bg-[var(--surface-card-soft)]/60 hover:border-[var(--surface-border)]'
                                     }`}
                                   >
                                     <div className="flex items-center gap-3">
                                       <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-[11px] font-bold transition-all ${
                                         isSelected
                                           ? 'bg-blue-600 border-blue-500 text-white'
-                                          : 'border-slate-700 text-slate-400'
+                                          : 'border-[var(--surface-border)] text-[var(--text-main)]/50'
                                       }`}>
                                         {String.fromCharCode(65 + oIdx)}
                                       </span>
                                       <span className="text-xs md:text-sm">{option}</span>
                                     </div>
                                     <div className={`h-2.5 w-2.5 rounded-full border transition-all ${
-                                      isSelected ? 'bg-blue-500 border-blue-400 scale-110' : 'border-slate-800'
+                                      isSelected ? 'bg-blue-500 border-blue-400 scale-110' : 'border-[var(--surface-border)]'
                                     }`} />
                                   </button>
                                 );
@@ -896,23 +960,23 @@ export default function VideoLesson() {
                       </div>
 
                       {/* Compact Pagination controls */}
-                      <div className="flex items-center justify-between gap-4 pt-6 mt-8 border-t border-slate-900 select-none">
+                      <div className="flex items-center justify-between gap-4 pt-6 mt-8 border-t border-[var(--surface-border)] select-none">
                         <button
                           onClick={() => setActiveQuestionIndex(prev => Math.max(0, prev - 1))}
                           disabled={activeQuestionIndex === 0}
-                          className="text-xs font-bold px-4 py-2.5 rounded-lg border border-slate-800 bg-slate-950/40 text-slate-300 hover:bg-[#111827]/80 disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200"
+                          className="text-xs font-bold px-4 py-2.5 rounded-lg border border-[var(--surface-border)] bg-[var(--surface-card-soft)]/40 text-[var(--text-main)] hover:bg-[var(--surface-card-soft)]/80 disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200"
                         >
                           &larr; Previous
                         </button>
 
-                        <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                        <div className="text-[10px] text-[var(--text-main)]/60 font-bold uppercase tracking-wider">
                           {Object.keys(quizSelection).length} / {quizQuestions.length} Selected
                         </div>
 
                         {activeQuestionIndex < quizQuestions.length - 1 ? (
                           <button
                             onClick={() => setActiveQuestionIndex(prev => Math.min(quizQuestions.length - 1, prev + 1))}
-                            className="text-xs font-bold px-4 py-2.5 rounded-lg border border-slate-800 bg-slate-950/40 text-slate-300 hover:bg-[#111827]/80 transition-all duration-200"
+                            className="text-xs font-bold px-4 py-2.5 rounded-lg border border-[var(--surface-border)] bg-[var(--surface-card-soft)]/40 text-[var(--text-main)] hover:bg-[var(--surface-card-soft)]/80 transition-all duration-200"
                           >
                             Next &rarr;
                           </button>
@@ -952,40 +1016,40 @@ export default function VideoLesson() {
                     {/* AI Assistant Popup Modal */}
                     {showAiModal && (
                       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200 select-none">
-                        <div className="relative rounded-2xl border border-slate-900 bg-[#090d16] p-6 shadow-2xl flex flex-col h-[600px] max-w-xl w-full animate-in zoom-in-95 duration-200">
+                        <div className="relative rounded-2xl border border-[var(--surface-border)] bg-[var(--surface-card)] p-6 shadow-2xl flex flex-col h-[600px] max-w-xl w-full animate-in zoom-in-95 duration-200">
                           
                           {/* Close Button */}
                           <button 
                             onClick={() => setShowAiModal(false)}
-                            className="absolute top-4 right-4 text-slate-400 hover:text-white transition-all p-1.5 rounded-lg hover:bg-slate-900"
+                            className="absolute top-4 right-4 text-[var(--text-main)] hover:text-[var(--text-heading)] transition-all p-1.5 rounded-lg hover:bg-[var(--surface-card-soft)]"
                           >
                             <X className="w-5 h-5" />
                           </button>
 
                           {/* AI Assistant Header */}
-                          <div className="flex items-center gap-3 pb-3.5 border-b border-slate-900">
-                            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/10 text-blue-400">
-                              <Brain className="h-5.5 w-5.5 animate-pulse text-indigo-400" />
+                          <div className="flex items-center gap-3 pb-3.5 border-b border-[var(--surface-border)]">
+                            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/10 text-blue-500">
+                              <Brain className="h-5.5 w-5.5 animate-pulse text-indigo-500" />
                             </div>
                             <div>
                               <div className="flex items-center gap-2">
-                                <span className="text-sm font-black text-white tracking-wide">AI Learning Assistant</span>
+                                <span className="text-sm font-black text-[var(--text-heading)] tracking-wide">AI Learning Assistant</span>
                                 <span className="h-2 w-2 rounded-full bg-emerald-500 animate-ping" />
                               </div>
-                              <span className="text-xs text-slate-400 block">Stuck on a term or concept? Ask me!</span>
+                              <span className="text-xs text-[var(--text-main)]/70 block">Stuck on a term or concept? Ask me!</span>
                             </div>
                           </div>
 
                           {/* Chat Messages Log */}
-                          <div className="flex-1 overflow-y-auto py-4 space-y-4 pr-1 scrollbar-thin scrollbar-thumb-slate-800 scrollbar-track-transparent">
+                          <div className="flex-1 overflow-y-auto py-4 space-y-4 pr-1 scrollbar-thin scrollbar-thumb-[var(--surface-border)] scrollbar-track-transparent">
                             {aiMessages.length === 0 ? (
                               <div className="h-full flex flex-col items-center justify-center text-center p-6 space-y-4">
-                                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-950 border border-slate-900 text-indigo-400">
+                                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--surface-card-soft)] border border-[var(--surface-border)] text-indigo-500">
                                   <Sparkles className="h-6 w-6" />
                                 </div>
                                 <div className="space-y-1">
-                                  <h5 className="text-sm font-bold text-white">Ask for Clarifications</h5>
-                                  <p className="text-xs text-slate-400 leading-relaxed max-w-sm">
+                                  <h5 className="text-sm font-bold text-[var(--text-heading)]">Ask for Clarifications</h5>
+                                  <p className="text-xs text-[var(--text-main)]/70 leading-relaxed max-w-sm">
                                     I can explain concepts and define tricky words. (I won't tell you the answer!)
                                   </p>
                                 </div>
@@ -994,24 +1058,24 @@ export default function VideoLesson() {
                                 <div className="pt-2 w-full space-y-2.5">
                                   <button 
                                     onClick={() => handleAskAi("Explain the core concept of this question")}
-                                    className="w-full text-left text-xs font-semibold px-4 py-2.5 rounded-lg bg-slate-950 border border-slate-900 hover:border-blue-500/40 text-slate-350 hover:text-white transition-all duration-200 flex items-center justify-between"
+                                    className="w-full text-left text-xs font-semibold px-4 py-2.5 rounded-lg bg-[var(--surface-card-soft)] border border-[var(--surface-border)] hover:border-blue-500/40 text-[var(--text-main)] hover:text-[var(--text-heading)] transition-all duration-200 flex items-center justify-between"
                                   >
                                     <span>Explain the concept</span>
-                                    <ChevronRight className="w-3.5 h-3.5 text-slate-500" />
+                                    <ChevronRight className="w-3.5 h-3.5 text-[var(--text-main)]/50" />
                                   </button>
                                   <button 
                                     onClick={() => handleAskAi("Define any difficult words or terms in this question")}
-                                    className="w-full text-left text-xs font-semibold px-4 py-2.5 rounded-lg bg-[#0a0f1d] border border-slate-900 hover:border-blue-500/40 text-slate-355 hover:text-white transition-all duration-200 flex items-center justify-between"
+                                    className="w-full text-left text-xs font-semibold px-4 py-2.5 rounded-lg bg-[var(--surface-card-soft)] border border-[var(--surface-border)] hover:border-blue-500/40 text-[var(--text-main)] hover:text-[var(--text-heading)] transition-all duration-200 flex items-center justify-between"
                                   >
                                     <span>Define difficult words</span>
-                                    <ChevronRight className="w-3.5 h-3.5 text-slate-500" />
+                                    <ChevronRight className="w-3.5 h-3.5 text-[var(--text-main)]/50" />
                                   </button>
                                   <button 
                                     onClick={() => handleAskAi("Give me a conceptual clue or hint for this question")}
-                                    className="w-full text-left text-xs font-semibold px-4 py-2.5 rounded-lg bg-[#0a0f1d] border border-slate-900 hover:border-blue-500/40 text-slate-355 hover:text-white transition-all duration-200 flex items-center justify-between"
+                                    className="w-full text-left text-xs font-semibold px-4 py-2.5 rounded-lg bg-[var(--surface-card-soft)] border border-[var(--surface-border)] hover:border-blue-500/40 text-[var(--text-main)] hover:text-[var(--text-heading)] transition-all duration-200 flex items-center justify-between"
                                   >
                                     <span>Give me a hint</span>
-                                    <ChevronRight className="w-3.5 h-3.5 text-slate-500" />
+                                    <ChevronRight className="w-3.5 h-3.5 text-[var(--text-main)]/50" />
                                   </button>
                                 </div>
                               </div>
@@ -1025,14 +1089,14 @@ export default function VideoLesson() {
                                       className={`flex gap-3 max-w-[88%] ${isAI ? 'mr-auto' : 'ml-auto flex-row-reverse'}`}
                                     >
                                       <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-[11px] font-bold ${
-                                        isAI ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20' : 'bg-slate-900 text-slate-300 border border-slate-800'
+                                        isAI ? 'bg-blue-600/10 text-blue-500 border border-blue-550/20' : 'bg-[var(--surface-card-soft)] text-[var(--text-main)] border border-[var(--surface-border)]'
                                       }`}>
                                         {isAI ? 'AI' : 'ME'}
                                       </div>
                                       <div className={`rounded-xl p-3.5 text-sm leading-relaxed ${
                                         isAI 
-                                          ? 'bg-slate-950/60 border border-slate-900 text-slate-200' 
-                                          : 'bg-indigo-600/10 border border-indigo-500/20 text-white'
+                                          ? 'bg-[var(--surface-card-soft)] border border-[var(--surface-border)] text-[var(--text-main)]' 
+                                          : 'bg-indigo-600/10 border border-indigo-500/20 text-[var(--text-heading)]'
                                       }`}>
                                         {msg.content}
                                       </div>
@@ -1042,13 +1106,13 @@ export default function VideoLesson() {
                                 
                                 {aiLoading && (
                                   <div className="flex gap-3 max-w-[88%] mr-auto items-center">
-                                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-blue-600/10 text-blue-400 border border-blue-500/20 text-[11px] font-bold">
+                                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-blue-600/10 text-blue-500 border border-blue-550/20 text-[11px] font-bold">
                                       AI
                                     </div>
-                                    <div className="rounded-xl p-3.5 bg-slate-950/60 border border-slate-900 text-sm text-slate-500 italic flex items-center gap-1.5">
-                                      <span className="h-1.5 w-1.5 rounded-full bg-slate-600 animate-bounce" style={{ animationDelay: '0ms' }} />
-                                      <span className="h-1.5 w-1.5 rounded-full bg-slate-600 animate-bounce" style={{ animationDelay: '150ms' }} />
-                                      <span className="h-1.5 w-1.5 rounded-full bg-slate-600 animate-bounce" style={{ animationDelay: '300ms' }} />
+                                    <div className="rounded-xl p-3.5 bg-[var(--surface-card-soft)] border border-[var(--surface-border)] text-sm text-[var(--text-main)]/55 italic flex items-center gap-1.5">
+                                      <span className="h-1.5 w-1.5 rounded-full bg-[var(--text-main)]/40 animate-bounce" style={{ animationDelay: '0ms' }} />
+                                      <span className="h-1.5 w-1.5 rounded-full bg-[var(--text-main)]/40 animate-bounce" style={{ animationDelay: '150ms' }} />
+                                      <span className="h-1.5 w-1.5 rounded-full bg-[var(--text-main)]/40 animate-bounce" style={{ animationDelay: '300ms' }} />
                                     </div>
                                   </div>
                                 )}
@@ -1062,7 +1126,7 @@ export default function VideoLesson() {
                               e.preventDefault();
                               handleAskAi();
                             }}
-                            className="mt-3 pt-3.5 border-t border-slate-900 flex gap-2 select-text"
+                            className="mt-3 pt-3.5 border-t border-[var(--surface-border)] flex gap-2 select-text"
                           >
                             <input
                               type="text"
@@ -1070,7 +1134,7 @@ export default function VideoLesson() {
                               onChange={(e) => setAiInput(e.target.value)}
                               placeholder="Ask assistant..."
                               disabled={aiLoading}
-                              className="flex-1 bg-slate-950 border border-slate-900 focus:border-slate-800 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-600 outline-none transition-all duration-200"
+                              className="flex-1 bg-[var(--surface-card-soft)] border border-[var(--surface-border)] focus:border-blue-500/50 rounded-xl px-4 py-2.5 text-sm text-[var(--text-heading)] placeholder-[var(--text-main)]/50 outline-none transition-all duration-200"
                             />
                             <button
                               type="submit"
@@ -1092,12 +1156,12 @@ export default function VideoLesson() {
 
           {lessonType === 'assignment' && (
             <div className="mx-auto max-w-4xl w-full px-8 py-12">
-              <div className="rounded-2xl border border-slate-900 bg-[#090d16] p-8">
-                <div className="text-xs font-black uppercase tracking-[0.2em] text-blue-400">Assignment</div>
-                <p className="mt-4 text-lg leading-8 text-slate-350">{lessonActivity?.assignment?.description || lessonContent?.brief || lessonData.lesson.description}</p>
+              <div className="rounded-2xl border border-[var(--surface-border)] bg-[var(--surface-card)] p-8">
+                <div className="text-xs font-black uppercase tracking-[0.2em] text-blue-550">Assignment</div>
+                <p className="mt-4 text-lg leading-8 text-[var(--text-main)]">{lessonActivity?.assignment?.description || lessonContent?.brief || lessonData.lesson.description}</p>
                 <div className="mt-6 space-y-2">
                   {(lessonActivity?.assignment?.deliverables || lessonContent?.deliverables || []).map((item: string, index: number) => (
-                    <div key={`${item}-${index}`} className="rounded-xl bg-black/30 px-4 py-3 text-sm font-bold text-slate-250 font-sans">
+                    <div key={`${item}-${index}`} className="rounded-xl bg-[var(--surface-card-soft)] px-4 py-3 text-sm font-bold text-[var(--text-main)] font-sans">
                       {item}
                     </div>
                   ))}
@@ -1106,7 +1170,7 @@ export default function VideoLesson() {
                   value={assignmentText}
                   onChange={(e) => setAssignmentText(e.target.value)}
                   placeholder="Write your assignment response or implementation outline here."
-                  className="mt-6 min-h-40 w-full rounded-xl border border-slate-900 bg-black/30 px-4 py-4 text-sm text-white outline-none focus:border-slate-800 transition-colors"
+                  className="mt-6 min-h-40 w-full rounded-xl border border-[var(--surface-border)] bg-[var(--surface-card-soft)]/50 px-4 py-4 text-sm text-[var(--text-heading)] outline-none focus:border-blue-500/50 transition-colors"
                 />
                 <button
                   onClick={async () => {
@@ -1129,10 +1193,10 @@ export default function VideoLesson() {
                   {submittingActivity ? 'Submitting...' : 'Submit Assignment'}
                 </button>
                 {(lessonActivity?.assignment?.submissions?.length ?? 0) > 0 && (
-                  <div className="mt-6 rounded-xl bg-black/30 p-4 text-sm text-slate-400">
+                  <div className="mt-6 rounded-xl bg-[var(--surface-card-soft)]/50 p-4 text-sm text-[var(--text-main)]/80">
                     <div>Latest submission: {new Date(lessonActivity.assignment.submissions[0].submittedAt).toLocaleString()}</div>
                     {lessonActivity.assignment.submissions[0].score !== null && lessonActivity.assignment.submissions[0].score !== undefined && (
-                      <div className="mt-2 text-emerald-400">
+                      <div className="mt-2 text-emerald-500">
                         Graded: {lessonActivity.assignment.submissions[0].score}%{lessonActivity.assignment.submissions[0].feedback ? ` • ${lessonActivity.assignment.submissions[0].feedback}` : ''}
                       </div>
                     )}
@@ -1144,12 +1208,12 @@ export default function VideoLesson() {
 
           {lessonType === 'live' && (
             <div className="mx-auto max-w-4xl px-8 py-12">
-              <div className="rounded-2xl border border-slate-900 bg-[#090d16] p-8">
-                <div className="text-xs font-black uppercase tracking-[0.2em] text-blue-400">Live Session</div>
-                <p className="mt-4 text-lg text-slate-300">{lessonContent?.note || lessonData.lesson.description}</p>
+              <div className="rounded-2xl border border-[var(--surface-border)] bg-[var(--surface-card)] p-8">
+                <div className="text-xs font-black uppercase tracking-[0.2em] text-blue-550">Live Session</div>
+                <p className="mt-4 text-lg text-[var(--text-main)]">{lessonContent?.note || lessonData.lesson.description}</p>
                 <div className="mt-8 grid gap-4 md:grid-cols-3">
                   {(lessonContent?.agenda ?? []).map((item: string, index: number) => (
-                    <div key={`${item}-${index}`} className="rounded-xl border border-slate-900 bg-black/30 p-5 text-sm font-bold text-slate-205">
+                    <div key={`${item}-${index}`} className="rounded-xl border border-[var(--surface-border)] bg-[var(--surface-card-soft)]/50 p-5 text-sm font-bold text-[var(--text-main)]">
                       {item}
                     </div>
                   ))}
@@ -1160,38 +1224,38 @@ export default function VideoLesson() {
         </div>
 
         {/* Mid Navigation controls */}
-        <div className="h-20 bg-[#090d16] border-t border-slate-900 flex items-center px-8 gap-8 justify-between select-none">
+        <div className="h-20 bg-[var(--surface-card)] border-t border-[var(--surface-border)] flex items-center px-8 gap-8 justify-between select-none">
           <div className="flex-1">
-            <h2 className="text-sm font-semibold text-slate-350">{lessonData.lesson.title}</h2>
+            <h2 className="text-sm font-semibold text-[var(--text-heading)]">{lessonData.lesson.title}</h2>
           </div>
           <div className="flex items-center gap-6">
             {previousLesson ? (
               <button 
                 onClick={() => router.push(`/course/${courseId}/lesson/${previousLesson.id}`)} 
-                className="flex items-center gap-2 text-sm font-medium text-slate-400 hover:text-white transition-colors"
+                className="flex items-center gap-2 text-sm font-medium text-[var(--text-main)] hover:text-[var(--text-heading)] transition-colors"
               >
                 &lt;&nbsp;&nbsp;Previous
               </button>
             ) : (
-              <span className="flex items-center gap-2 text-sm font-medium text-slate-600 cursor-not-allowed">
+              <span className="flex items-center gap-2 text-sm font-medium text-[var(--text-main)]/40 cursor-not-allowed">
                 &lt;&nbsp;&nbsp;Previous
               </span>
             )}
             {nextLesson ? (
               <button 
                 onClick={() => router.push(`/course/${courseId}/lesson/${nextLesson.id}`)} 
-                className="flex items-center gap-2 text-sm font-medium text-slate-400 hover:text-white transition-colors"
+                className="flex items-center gap-2 text-sm font-medium text-[var(--text-main)] hover:text-[var(--text-heading)] transition-colors"
               >
                 Next&nbsp;&nbsp;&gt;
               </button>
             ) : (
-              <span className="flex items-center gap-2 text-sm font-medium text-slate-600 cursor-not-allowed">
+              <span className="flex items-center gap-2 text-sm font-medium text-[var(--text-main)]/40 cursor-not-allowed">
                 Next&nbsp;&nbsp;&gt;
               </span>
             )}
             <button 
               onClick={() => setShowBottomPanel(!showBottomPanel)} 
-              className={`flex items-center gap-2 text-sm font-medium transition-colors ${showBottomPanel ? 'text-blue-400 font-semibold' : 'text-slate-400 hover:text-white'}`}
+              className={`flex items-center gap-2 text-sm font-medium transition-colors ${showBottomPanel ? 'text-blue-500 font-semibold' : 'text-[var(--text-main)] hover:text-[var(--text-heading)]'}`}
             >
               <MessageSquare className="w-4 h-4" /> Discussion
             </button>
@@ -1204,28 +1268,28 @@ export default function VideoLesson() {
             onClick={() => setShowBottomPanel(false)}
           >
             <div 
-              className="relative rounded-2xl border border-slate-900 bg-[#090d16] p-6 shadow-2xl flex flex-col h-[550px] max-w-2xl w-full animate-in zoom-in-95 duration-200"
+              className="relative rounded-2xl border border-[var(--surface-border)] bg-[var(--surface-card)] p-6 shadow-2xl flex flex-col h-[550px] max-w-2xl w-full animate-in zoom-in-95 duration-200"
               onClick={(e) => e.stopPropagation()}
             >
               
               {/* Close Button */}
               <button 
                 onClick={() => setShowBottomPanel(false)}
-                className="absolute top-4 right-4 text-slate-400 hover:text-white transition-all p-1.5 rounded-lg hover:bg-slate-900"
+                className="absolute top-4 right-4 text-[var(--text-main)] hover:text-[var(--text-heading)] transition-all p-1.5 rounded-lg hover:bg-[var(--surface-card-soft)]"
               >
                 <X className="w-5 h-5" />
               </button>
 
               {/* Tabs Header */}
-              <div className="flex items-center gap-6 border-b border-slate-900 pb-3 mb-4 pr-10">
+              <div className="flex items-center gap-6 border-b border-[var(--surface-border)] pb-3 mb-4 pr-10">
                 <button
                   onClick={() => setActiveBottomTab('discussion')}
                   className={`text-xs font-black uppercase tracking-[0.25em] transition-all relative pb-3 flex items-center gap-2 ${
-                    activeBottomTab === 'discussion' ? 'text-blue-400' : 'text-slate-500 hover:text-slate-300'
+                    activeBottomTab === 'discussion' ? 'text-blue-500' : 'text-[var(--text-main)]/60 hover:text-[var(--text-heading)]'
                   }`}
                 >
                   <span>Discussion</span>
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${activeBottomTab === 'discussion' ? 'bg-blue-500/20 text-blue-300' : 'bg-slate-950 text-slate-600'}`}>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${activeBottomTab === 'discussion' ? 'bg-blue-500/20 text-blue-300' : 'bg-[var(--surface-card-soft)] text-[var(--text-main)]/50'}`}>
                     {lessonActivity?.discussion?.length ?? 0}
                   </span>
                   {activeBottomTab === 'discussion' && (
@@ -1235,11 +1299,11 @@ export default function VideoLesson() {
                 <button
                   onClick={() => setActiveBottomTab('announcements')}
                   className={`text-xs font-black uppercase tracking-[0.25em] transition-all relative pb-3 flex items-center gap-2 ${
-                    activeBottomTab === 'announcements' ? 'text-blue-400' : 'text-slate-500 hover:text-slate-300'
+                    activeBottomTab === 'announcements' ? 'text-blue-500' : 'text-[var(--text-main)]/60 hover:text-[var(--text-heading)]'
                   }`}
                 >
                   <span>Course Announcements</span>
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${activeBottomTab === 'announcements' ? 'bg-blue-500/20 text-blue-300' : 'bg-slate-950 text-slate-600'}`}>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${activeBottomTab === 'announcements' ? 'bg-blue-500/20 text-blue-300' : 'bg-[var(--surface-card-soft)] text-[var(--text-main)]/50'}`}>
                     {lessonActivity?.announcements?.length ?? 0}
                   </span>
                   {activeBottomTab === 'announcements' && (
@@ -1251,23 +1315,23 @@ export default function VideoLesson() {
               {/* Tab contents */}
               {activeBottomTab === 'discussion' && (
                 <div className="flex flex-col flex-1 min-h-0">
-                  <div className="flex-1 overflow-y-auto pr-1 space-y-3 scrollbar-thin scrollbar-thumb-slate-800 scrollbar-track-transparent">
+                  <div className="flex-1 overflow-y-auto pr-1 space-y-3 scrollbar-thin scrollbar-thumb-[var(--surface-border)] scrollbar-track-transparent">
                     {(lessonActivity?.discussion ?? []).map((comment: any) => (
-                      <div key={comment.id} className="rounded-lg bg-black/40 px-4 py-2.5 border border-slate-900/50 animate-in fade-in duration-200 select-text">
-                        <div className="text-xs font-bold text-slate-400">{comment.user.firstName} {comment.user.lastName}</div>
-                        <div className="mt-0.5 text-sm text-slate-200 leading-relaxed">{comment.message}</div>
+                      <div key={comment.id} className="rounded-lg bg-[var(--surface-card-soft)]/55 px-4 py-2.5 border border-[var(--surface-border)] animate-in fade-in duration-200 select-text">
+                        <div className="text-xs font-bold text-[var(--text-main)]/70">{comment.user.firstName} {comment.user.lastName}</div>
+                        <div className="mt-0.5 text-sm text-[var(--text-heading)] leading-relaxed">{comment.message}</div>
                       </div>
                     ))}
                     {(lessonActivity?.discussion?.length ?? 0) === 0 && (
-                      <div className="text-xs text-slate-500 py-3 font-medium">No discussion yet for this lesson.</div>
+                      <div className="text-xs text-[var(--text-main)]/50 py-3 font-medium">No discussion yet for this lesson.</div>
                     )}
                   </div>
-                  <div className="mt-4 pt-3.5 border-t border-slate-900 flex gap-2 items-end">
+                  <div className="mt-4 pt-3.5 border-t border-[var(--surface-border)] flex gap-2 items-end">
                     <textarea 
                       value={discussionMessage} 
                       onChange={(e) => setDiscussionMessage(e.target.value)} 
                       placeholder="Ask a question or share an insight..." 
-                      className="min-h-12 flex-1 rounded-xl border border-slate-900 bg-black/40 px-4 py-2.5 text-sm text-white outline-none focus:border-slate-850 transition-colors placeholder:text-slate-650 resize-none select-text" 
+                      className="min-h-12 flex-1 rounded-xl border border-[var(--surface-border)] bg-[var(--surface-card-soft)]/50 px-4 py-2.5 text-sm text-[var(--text-heading)] outline-none focus:border-blue-500/50 transition-colors placeholder:[var(--text-main)]/50 resize-none select-text" 
                     />
                     <button
                       className="rounded-xl bg-blue-600 hover:bg-blue-500 px-5 py-2.5 text-xs font-bold text-white disabled:opacity-40 transition-colors shadow-md shadow-blue-900/20"
@@ -1291,18 +1355,18 @@ export default function VideoLesson() {
               )}
 
               {activeBottomTab === 'announcements' && (
-                <div className="flex-1 overflow-y-auto pr-1 space-y-3 scrollbar-thin scrollbar-thumb-slate-800 scrollbar-track-transparent">
+                <div className="flex-1 overflow-y-auto pr-1 space-y-3 scrollbar-thin scrollbar-thumb-[var(--surface-border)] scrollbar-track-transparent">
                   {(lessonActivity?.announcements ?? []).map((announcement: any) => (
-                    <div key={announcement.id} className="rounded-lg bg-black/40 px-4 py-3 border border-slate-900/50 animate-in fade-in duration-200 select-text">
-                      <div className="text-xs font-bold text-white">{announcement.title}</div>
-                      <div className="mt-1 text-xs text-slate-350 leading-relaxed">{announcement.body}</div>
-                      <div className="mt-2 text-[10px] text-slate-500 font-semibold">
+                    <div key={announcement.id} className="rounded-lg bg-[var(--surface-card-soft)]/55 px-4 py-3 border border-[var(--surface-border)] animate-in fade-in duration-200 select-text">
+                      <div className="text-xs font-bold text-[var(--text-heading)]">{announcement.title}</div>
+                      <div className="mt-1 text-xs text-[var(--text-main)]/80 leading-relaxed">{announcement.body}</div>
+                      <div className="mt-2 text-[10px] text-[var(--text-main)]/50 font-semibold">
                         {announcement.author.firstName} {announcement.author.lastName} • {new Date(announcement.createdAt).toLocaleDateString()}
                       </div>
                     </div>
                   ))}
                   {(lessonActivity?.announcements?.length ?? 0) === 0 && (
-                    <div className="text-xs text-slate-500 py-3 font-medium">No announcements yet.</div>
+                    <div className="text-xs text-[var(--text-main)]/50 py-3 font-medium">No announcements yet.</div>
                   )}
                 </div>
               )}

@@ -6,13 +6,12 @@ import { useEffect, useState } from 'react';
 type Theme = 'light' | 'dark';
 
 export function ThemeSwitcher() {
-  const [theme, setTheme] = useState<Theme>('dark');
+  const [theme, setTheme] = useState<Theme>('light');
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     const savedTheme = localStorage.getItem('theme') as Theme | null;
-    const prefersLight = window.matchMedia?.('(prefers-color-scheme: light)').matches;
-    setTheme(savedTheme ?? (prefersLight ? 'light' : 'dark'));
+    setTheme(savedTheme ?? 'light');
     setMounted(true);
   }, []);
 
