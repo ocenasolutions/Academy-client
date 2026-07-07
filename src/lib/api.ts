@@ -67,6 +67,7 @@ function mapLesson(lesson: any) {
     isPreview: Boolean(lesson.isPreview),
     description: lesson.description || undefined,
     content: lesson.content ?? undefined,
+    videoUrl: lesson.videoUrl || undefined,
   };
 }
 

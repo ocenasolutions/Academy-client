@@ -8,6 +8,16 @@ import { addLessonDiscussionComment, getEnrollmentDetails, getLessonActivity, ge
 import { useProtectedPage } from '@/lib/use-protected-page';
 import { useToast } from '@/contexts/ToastContext';
 
+function getYoutubeEmbedUrl(url?: string): string | null {
+  if (!url) return null;
+  const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+  const match = url.match(regExp);
+  if (match && match[2].length === 11) {
+    return `https://www.youtube.com/embed/${match[2]}?autoplay=0&rel=0`;
+  }
+  return null;
+}
+
 export default function VideoLesson() {
   const { courseId, lessonId } = useParams<{ courseId: string; lessonId: string }>();
   const router = useRouter();
@@ -396,6 +406,30 @@ export default function VideoLesson() {
     });
   }, [lessonContent, lessonActivity]);
 
+  const parsedAssignment = useMemo(() => {
+    const rawDesc = lessonActivity?.assignment?.description || lessonData?.lesson?.description || '';
+    if (!rawDesc) return null;
+
+    if (typeof rawDesc === 'string' && (rawDesc.trim().startsWith('{') || rawDesc.trim().startsWith('['))) {
+      try {
+        const parsed = JSON.parse(rawDesc);
+        return {
+          brief: parsed.brief || parsed.description || rawDesc,
+          rubric: Array.isArray(parsed.rubric) ? parsed.rubric : [],
+          deliverables: Array.isArray(parsed.deliverables) ? parsed.deliverables : [],
+        };
+      } catch (e) {
+        // Fall through
+      }
+    }
+
+    return {
+      brief: rawDesc,
+      rubric: [],
+      deliverables: [],
+    };
+  }, [lessonActivity, lessonData]);
+
   const handleAskAi = async (customMessage?: string) => {
     const textToSend = customMessage || aiInput;
     if (!textToSend.trim() || aiLoading) return;
@@ -663,29 +697,87 @@ export default function VideoLesson() {
           }}
           className="flex-1 bg-[var(--bg-main)] relative overflow-auto scrollbar-thin scrollbar-thumb-[var(--surface-border)] scrollbar-track-transparent"
         >
-          {lessonType === 'video' && (
-            <div className="h-full flex items-center justify-center relative">
-              <img src="https://images.unsplash.com/photo-1516116216624-53e697fedbea?auto=format&fit=crop&q=80&w=1600" className="w-full h-full object-cover opacity-50" />
-              <div className="absolute inset-0 flex items-center justify-center">
-                <button className="w-20 h-20 bg-blue-600/90 hover:bg-blue-600 text-white rounded-full flex items-center justify-center backdrop-blur-sm transition-transform hover:scale-110 shadow-2xl shadow-blue-550/50">
-                  <Play className="w-8 h-8 ml-1" fill="currentColor" />
-                </button>
-              </div>
-              <div className="absolute bottom-0 inset-x-0 h-16 bg-gradient-to-t from-black/80 to-transparent flex items-end px-6 pb-4">
-                <div className="w-full">
-                  <div className="w-full h-1 bg-gray-600 rounded-full mb-3 cursor-pointer">
-                     <div className="w-1/3 h-full bg-blue-500 rounded-full relative">
-                      <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full shadow"></div>
+          {lessonType === 'video' && (() => {
+            const embedUrl = getYoutubeEmbedUrl(lessonData?.lesson?.videoUrl);
+            return (
+              <div className="mx-auto max-w-7xl w-full px-4 sm:px-6 md:px-8 py-8 md:py-12 space-y-8 animate-in fade-in slide-in-from-bottom-6 duration-500">
+                {/* Immersive Video Player Card */}
+                <div className="relative group rounded-3xl overflow-hidden border border-[var(--surface-border)] bg-[var(--surface-card)] shadow-[0_20px_50px_rgba(0,0,0,0.15)] transition-all duration-300 hover:shadow-[0_25px_60px_rgba(0,0,0,0.25)]">
+                  {/* Outer ambient glow */}
+                  <div className="absolute -inset-1 bg-gradient-to-r from-blue-600/20 to-indigo-600/20 rounded-3xl blur opacity-30 group-hover:opacity-50 transition duration-500 pointer-events-none" />
+                  
+                  {embedUrl ? (
+                    <div className="relative w-full aspect-video flex items-center justify-center bg-black overflow-hidden z-10">
+                      <iframe
+                        src={embedUrl}
+                        className="w-full h-full border-0"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                        allowFullScreen
+                      />
                     </div>
+                  ) : (
+                    <div className="relative w-full aspect-video flex items-center justify-center bg-black overflow-hidden z-10">
+                      <img 
+                        src="https://images.unsplash.com/photo-1516116216624-53e697fedbea?auto=format&fit=crop&q=80&w=1600" 
+                        className="w-full h-full object-cover opacity-40 transition-transform duration-700 group-hover:scale-105" 
+                      />
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/35 backdrop-blur-[2px]">
+                        <button className="w-22 h-22 bg-blue-600 hover:bg-blue-500 text-white rounded-full flex items-center justify-center transition-all duration-300 hover:scale-110 shadow-2xl shadow-blue-550/40 border border-blue-400/30">
+                          <Play className="w-9 h-9 ml-1 fill-white" />
+                        </button>
+                      </div>
+                      <div className="absolute bottom-0 inset-x-0 h-20 bg-gradient-to-t from-black/90 via-black/50 to-transparent flex items-end px-6 pb-5">
+                        <div className="w-full">
+                          <div className="w-full h-1 bg-white/20 rounded-full mb-3 cursor-pointer overflow-hidden">
+                            <div className="w-1/3 h-full bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full relative" />
+                          </div>
+                          <div className="flex justify-between text-xs font-semibold text-white/80 tracking-wide">
+                            <span className="flex items-center gap-1">
+                              <Video className="w-3.5 h-3.5 text-blue-400" /> {lessonData.lesson.duration}
+                            </span>
+                            <span>{Math.round(enrollment?.progressPercent ?? 0)}% complete</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Sleek Lesson Details & Description */}
+                <div className="space-y-6">
+                  {/* Meta badges row */}
+                  <div className="flex flex-wrap items-center gap-3">
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black uppercase tracking-[0.1em] bg-blue-500/10 text-blue-500 border border-blue-500/20">
+                      <Video className="w-3.5 h-3.5 fill-current" /> Video Lesson
+                    </span>
+                    <span className="text-sm text-[var(--text-main)]/30">•</span>
+                    <span className="inline-flex items-center gap-1.5 text-xs font-bold text-[var(--text-main)]/60 bg-[var(--surface-card)] border border-[var(--surface-border)] px-3 py-1 rounded-full">
+                      Duration: {lessonData.lesson.duration}
+                    </span>
                   </div>
-                  <div className="flex justify-between text-xs font-medium text-gray-300">
-                    <span>{lessonData.lesson.duration}</span>
-                    <span>{Math.round(enrollment?.progressPercent ?? 0)}% complete</span>
+
+                  {/* Title & Description Card */}
+                  <div className="p-8 rounded-3xl border border-[var(--surface-border)] bg-[var(--surface-card)] shadow-xl relative overflow-hidden backdrop-blur-md">
+                    {/* Subtle design element: corner gradient accent */}
+                    <div className="absolute top-0 right-0 w-48 h-48 bg-gradient-to-br from-blue-500/10 to-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+                    
+                    <h2 className="text-2xl md:text-3xl font-black tracking-tight text-[var(--text-heading)] leading-tight">
+                      {lessonData.lesson.title}
+                    </h2>
+                    
+                    <div className="h-px w-full bg-gradient-to-r from-[var(--surface-border)] via-transparent to-transparent my-6" />
+                    
+                    <div className="space-y-3">
+                      <h3 className="text-xs font-bold uppercase tracking-[0.15em] text-[var(--text-main)]/50">Overview & Key Takeaways</h3>
+                      <p className="text-base leading-relaxed text-[var(--text-main)]/80 font-medium whitespace-pre-line">
+                        {lessonData.lesson.description || "No description provided for this lesson."}
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {lessonType === 'reading' && (
             <div className="mx-auto max-w-4xl w-full px-8 py-12">
@@ -717,7 +809,19 @@ export default function VideoLesson() {
                 {sections.map((section: any, index: number) => (
                   <div key={`${section.heading}-${index}`} className="rounded-3xl border border-[var(--surface-border)] bg-[var(--surface-card)] p-6 overflow-hidden">
                     <h3 className="text-xl font-black text-[var(--text-heading)]">{section.heading}</h3>
-                    <p className="mt-3 leading-8 text-[var(--text-main)]/90">{section.body}</p>
+                    {Array.isArray(section.body) ? (
+                      section.body.map((para: string, pIdx: number) => (
+                        <p key={pIdx} className="mt-4 leading-8 text-[var(--text-main)]/90 text-justify">
+                          {para}
+                        </p>
+                      ))
+                    ) : typeof section.body === 'string' ? (
+                      section.body.split('\n').filter(Boolean).map((para: string, pIdx: number) => (
+                        <p key={pIdx} className="mt-4 leading-8 text-[var(--text-main)]/90 text-justify">
+                          {para}
+                        </p>
+                      ))
+                    ) : null}
                     
                     {(section.imageUrl || section.image) && (
                       <div className="mt-6 overflow-hidden rounded-2xl border border-[var(--surface-border)] bg-[var(--surface-card-soft)]/50 shadow-inner">
@@ -1154,57 +1258,144 @@ export default function VideoLesson() {
             </div>
           )}
 
-          {lessonType === 'assignment' && (
-            <div className="mx-auto max-w-4xl w-full px-8 py-12">
-              <div className="rounded-2xl border border-[var(--surface-border)] bg-[var(--surface-card)] p-8">
-                <div className="text-xs font-black uppercase tracking-[0.2em] text-blue-550">Assignment</div>
-                <p className="mt-4 text-lg leading-8 text-[var(--text-main)]">{lessonActivity?.assignment?.description || lessonContent?.brief || lessonData.lesson.description}</p>
-                <div className="mt-6 space-y-2">
-                  {(lessonActivity?.assignment?.deliverables || lessonContent?.deliverables || []).map((item: string, index: number) => (
-                    <div key={`${item}-${index}`} className="rounded-xl bg-[var(--surface-card-soft)] px-4 py-3 text-sm font-bold text-[var(--text-main)] font-sans">
-                      {item}
-                    </div>
-                  ))}
+          {lessonType === 'assignment' && (() => {
+            const briefText = parsedAssignment?.brief || lessonContent?.brief || lessonData?.lesson?.description || '';
+            const deliverables = [
+              ...(lessonActivity?.assignment?.deliverables || []),
+              ...(lessonContent?.deliverables || []),
+              ...(parsedAssignment?.deliverables || [])
+            ].filter(Boolean);
+            
+            const rubric = [
+              ...(lessonActivity?.assignment?.rubric || []),
+              ...(lessonContent?.rubric || []),
+              ...(parsedAssignment?.rubric || [])
+            ].filter(Boolean);
+
+            return (
+              <div className="mx-auto max-w-4xl w-full px-4 sm:px-6 md:px-8 py-8 md:py-12 space-y-8 animate-in fade-in slide-in-from-bottom-6 duration-500">
+                {/* Premium Header/Title Card */}
+                <div className="p-8 rounded-3xl border border-[var(--surface-border)] bg-[var(--surface-card)] shadow-xl relative overflow-hidden backdrop-blur-md">
+                  <div className="absolute top-0 right-0 w-48 h-48 bg-gradient-to-br from-indigo-500/10 to-purple-500/10 rounded-full blur-3xl pointer-events-none" />
+                  
+                  <div className="flex items-center gap-2">
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black uppercase tracking-[0.1em] bg-indigo-500/10 text-indigo-600 border border-indigo-500/20">
+                      <ClipboardList className="w-3.5 h-3.5" /> Assignment
+                    </span>
+                  </div>
+                  
+                  <h2 className="mt-4 text-2xl md:text-3xl font-black tracking-tight text-[var(--text-heading)] leading-tight">
+                    {lessonData.lesson.title}
+                  </h2>
+                  
+                  <div className="h-px w-full bg-gradient-to-r from-[var(--surface-border)] via-transparent to-transparent my-6" />
+                  
+                  <div className="space-y-3">
+                    <h3 className="text-xs font-bold uppercase tracking-[0.15em] text-[var(--text-main)]/50">Assignment Brief</h3>
+                    <p className="text-base leading-relaxed text-[var(--text-main)]/80 font-medium whitespace-pre-line">
+                      {briefText}
+                    </p>
+                  </div>
                 </div>
-                <textarea
-                  value={assignmentText}
-                  onChange={(e) => setAssignmentText(e.target.value)}
-                  placeholder="Write your assignment response or implementation outline here."
-                  className="mt-6 min-h-40 w-full rounded-xl border border-[var(--surface-border)] bg-[var(--surface-card-soft)]/50 px-4 py-4 text-sm text-[var(--text-heading)] outline-none focus:border-blue-500/50 transition-colors"
-                />
-                <button
-                  onClick={async () => {
-                    if (!enrollment || !assignmentText.trim()) return;
-                    setSubmittingActivity(true);
-                    try {
-                      await submitAssignment(enrollment.id, lessonId, { content: assignmentText });
-                      const activity = await getLessonActivity(enrollment.id, lessonId);
-                      setLessonActivity(activity);
-                      addToast('Assignment submitted.', 'success');
-                    } catch (error) {
-                      addToast(error instanceof Error ? error.message : 'Unable to submit assignment', 'error');
-                    } finally {
-                      setSubmittingActivity(false);
-                    }
-                  }}
-                  disabled={!assignmentText.trim() || submittingActivity}
-                  className="mt-6 rounded-xl bg-blue-600 px-5 py-3 text-sm font-black text-white disabled:opacity-40 transition-colors"
-                >
-                  {submittingActivity ? 'Submitting...' : 'Submit Assignment'}
-                </button>
-                {(lessonActivity?.assignment?.submissions?.length ?? 0) > 0 && (
-                  <div className="mt-6 rounded-xl bg-[var(--surface-card-soft)]/50 p-4 text-sm text-[var(--text-main)]/80">
-                    <div>Latest submission: {new Date(lessonActivity.assignment.submissions[0].submittedAt).toLocaleString()}</div>
-                    {lessonActivity.assignment.submissions[0].score !== null && lessonActivity.assignment.submissions[0].score !== undefined && (
-                      <div className="mt-2 text-emerald-500">
-                        Graded: {lessonActivity.assignment.submissions[0].score}%{lessonActivity.assignment.submissions[0].feedback ? ` • ${lessonActivity.assignment.submissions[0].feedback}` : ''}
-                      </div>
-                    )}
+
+                {/* Deliverables Section */}
+                {deliverables.length > 0 && (
+                  <div className="space-y-4">
+                    <h3 className="text-sm font-black uppercase tracking-wider text-[var(--text-main)]/80 px-1">Required Deliverables</h3>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {deliverables.map((item: string, index: number) => (
+                        <div key={`${item}-${index}`} className="flex gap-3 items-start rounded-2xl border border-[var(--surface-border)] bg-[var(--surface-card)] px-5 py-4 shadow-sm hover:shadow-md transition-shadow">
+                          <span className="flex items-center justify-center w-5 h-5 rounded-full bg-blue-500/10 text-blue-600 text-xs font-bold shrink-0 mt-0.5">
+                            {index + 1}
+                          </span>
+                          <span className="text-sm font-bold text-[var(--text-main)]">{item}</span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
+
+                {/* Grading Rubric Section */}
+                {rubric.length > 0 && (
+                  <div className="space-y-4">
+                    <h3 className="text-sm font-black uppercase tracking-wider text-[var(--text-main)]/80 px-1">Evaluation Rubric</h3>
+                    <div className="space-y-3">
+                      {rubric.map((item: string, index: number) => (
+                        <div key={`${item}-${index}`} className="flex gap-3 items-center rounded-2xl border border-[var(--surface-border)] bg-[var(--surface-card)] px-5 py-4 shadow-sm">
+                          <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
+                          <span className="text-sm font-semibold text-[var(--text-main)]/90">{item}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Submission Form */}
+                <div className="p-8 rounded-3xl border border-[var(--surface-border)] bg-[var(--surface-card)] shadow-xl space-y-6">
+                  <div className="space-y-2">
+                    <h3 className="text-sm font-black uppercase tracking-wider text-[var(--text-heading)]">Your Submission</h3>
+                    <p className="text-xs text-[var(--text-main)]/65">Submit your response, implementation outline, or download links below.</p>
+                  </div>
+                  
+                  <textarea
+                    value={assignmentText}
+                    onChange={(e) => setAssignmentText(e.target.value)}
+                    placeholder="Write your assignment response or implementation outline here..."
+                    className="min-h-40 w-full rounded-2xl border border-[var(--surface-border)] bg-[var(--surface-card-soft)]/50 px-5 py-4 text-sm text-[var(--text-heading)] outline-none focus:border-indigo-500/50 transition-all font-medium leading-relaxed resize-y"
+                  />
+                  
+                  <div className="flex items-center justify-between gap-4 pt-2">
+                    <button
+                      onClick={async () => {
+                        if (!enrollment || !assignmentText.trim()) return;
+                        setSubmittingActivity(true);
+                        try {
+                          await submitAssignment(enrollment.id, lessonId, { content: assignmentText });
+                          const activity = await getLessonActivity(enrollment.id, lessonId);
+                          setLessonActivity(activity);
+                          addToast('Assignment submitted successfully.', 'success');
+                          setAssignmentText('');
+                        } catch (error) {
+                          addToast(error instanceof Error ? error.message : 'Unable to submit assignment', 'error');
+                        } finally {
+                          setSubmittingActivity(false);
+                        }
+                      }}
+                      disabled={!assignmentText.trim() || submittingActivity}
+                      className="rounded-2xl bg-indigo-600 hover:bg-indigo-500 px-6 py-3.5 text-sm font-black text-white disabled:opacity-40 transition-colors shadow-lg shadow-indigo-500/20"
+                    >
+                      {submittingActivity ? 'Submitting...' : 'Submit Assignment'}
+                    </button>
+                  </div>
+
+                  {(lessonActivity?.assignment?.submissions?.length ?? 0) > 0 && (
+                    <div className="mt-4 rounded-2xl border border-indigo-500/10 bg-indigo-500/5 p-5 space-y-3">
+                      <div className="flex items-center justify-between text-xs font-bold text-indigo-600/80">
+                        <span>LATEST SUBMISSION</span>
+                        <span>{new Date(lessonActivity.assignment.submissions[0].submittedAt).toLocaleString()}</span>
+                      </div>
+                      <p className="text-sm font-medium text-[var(--text-main)]/90 bg-[var(--surface-card)] border border-[var(--surface-border)] px-4 py-3 rounded-xl">
+                        {lessonActivity.assignment.submissions[0].content}
+                      </p>
+                      {lessonActivity.assignment.submissions[0].score !== null && lessonActivity.assignment.submissions[0].score !== undefined && (
+                        <div className="flex items-start gap-2 text-sm font-bold text-emerald-500 bg-emerald-500/5 border border-emerald-500/10 p-3 rounded-xl">
+                          <Award className="w-5 h-5 shrink-0" />
+                          <div>
+                            <div>Graded Score: {lessonActivity.assignment.submissions[0].score}%</div>
+                            {lessonActivity.assignment.submissions[0].feedback && (
+                              <div className="mt-1 text-xs text-[var(--text-main)]/80 font-normal">
+                                Feedback: {lessonActivity.assignment.submissions[0].feedback}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {lessonType === 'live' && (
             <div className="mx-auto max-w-4xl px-8 py-12">

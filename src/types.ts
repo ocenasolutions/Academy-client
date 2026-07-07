@@ -20,6 +20,7 @@ export interface Lesson {
   durationSeconds?: number;
   description?: string;
   content?: unknown;
+  videoUrl?: string;
 }
 
 export interface LessonDiscussionComment {

@@ -1229,14 +1229,31 @@ function AdminDetailPanel({
         <div className="space-y-6">
           <div className="flex items-center justify-between gap-3">
             <div className="text-xs font-black uppercase tracking-[0.2em] text-brand-600">Course detail</div>
-            {detail?.id && onEditCourse && (
-              <button
-                onClick={() => onEditCourse(detail.id)}
-                className="rounded-xl bg-brand-500 px-4 py-2 text-sm font-black text-white"
-              >
-                Edit Course
-              </button>
-            )}
+            <div className="flex items-center gap-2">
+              {detail?.id && (
+                <button
+                  onClick={() => {
+                    const firstLessonId = detail?.modules?.[0]?.lessons?.[0]?.id;
+                    if (firstLessonId) {
+                      window.open(`/course/${detail.id}/lesson/${firstLessonId}`, '_blank');
+                    } else {
+                      alert('No lessons found in this course.');
+                    }
+                  }}
+                  className="rounded-xl bg-indigo-50 px-4 py-2 text-sm font-black text-indigo-700 border border-indigo-200 hover:bg-indigo-100"
+                >
+                  View as Student
+                </button>
+              )}
+              {detail?.id && onEditCourse && (
+                <button
+                  onClick={() => onEditCourse(detail.id)}
+                  className="rounded-xl bg-brand-500 px-4 py-2 text-sm font-black text-white"
+                >
+                  Edit Course
+                </button>
+              )}
+            </div>
           </div>
           <KeyValue title="Course" items={[
             ['Title', detail.title],

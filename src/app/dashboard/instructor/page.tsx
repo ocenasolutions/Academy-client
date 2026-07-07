@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { BookOpen, DollarSign, Megaphone, PlusCircle, Save, TrendingUp, Users } from 'lucide-react';
+import { BookOpen, DollarSign, Megaphone, PlusCircle, Save, Sparkles, TrendingUp, Users } from 'lucide-react';
 import { DashboardLayout } from '@/components/DashboardLayout';
 import { AiCourseStudio } from '@/components/AiCourseStudio';
 import { createCourseAnnouncement, getCategories, getInstructorAnalytics, getInstructorWorkspace, gradeAssignmentSubmission, updateCourseCurriculum } from '@/lib/api';
@@ -85,12 +85,28 @@ export default function InstructorDashboard() {
           <h1 className="text-4xl font-display font-black text-[var(--color-text-heading)]">Instructor Workspace</h1>
           <p className="mt-2 text-[var(--color-text-main)]/70 font-medium">Manage curriculum, announcements, and grading from one place.</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <select value={selectedCourse?.id ?? ''} onChange={(e) => setSelectedCourseId(e.target.value)} className="clay-input !py-3 min-w-64">
             {workspace.map((course) => (
               <option key={course.id} value={course.id}>{course.title}</option>
             ))}
           </select>
+          {selectedCourse && (
+            <button
+              onClick={() => {
+                const firstLessonId = selectedCourse?.modules?.[0]?.lessons?.[0]?.id;
+                if (firstLessonId) {
+                  window.open(`/course/${selectedCourse.id}/lesson/${firstLessonId}`, '_blank');
+                } else {
+                  addToast('No lessons found in this course.', 'info');
+                }
+              }}
+              className="clay-btn inline-flex items-center gap-2 px-5 py-3 border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100"
+            >
+              <Sparkles className="w-4.5 h-4.5" />
+              View as Student
+            </button>
+          )}
         </div>
       </div>
 

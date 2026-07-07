@@ -1,6 +1,7 @@
 'use client';
 
 import { ReactNode, useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Bot, CheckCircle2, Clock3, FileText, Film, ImageIcon, Layers3, Sparkles } from 'lucide-react';
 import { useToast } from '@/contexts/ToastContext';
 import { formatINRFromPaise } from '@/lib/currency';
@@ -9,6 +10,7 @@ import {
   generateAiCourseDraft,
   getCategories,
   getMyAiCourseGenerationJobs,
+  getCourse,
 } from '@/lib/api';
 import { AiCourseGenerationJob, Category } from '@/types';
 
@@ -57,6 +59,7 @@ function paiseToRupees(paise: number) {
 }
 
 export function AiCourseStudio({ role, onCourseApplied }: Props) {
+  const router = useRouter();
   const { addToast } = useToast();
   const [form, setForm] = useState(initialForm);
   const [jobs, setJobs] = useState<AiCourseGenerationJob[]>([]);
@@ -132,6 +135,20 @@ export function AiCourseStudio({ role, onCourseApplied }: Props) {
       addToast(error instanceof Error ? error.message : 'Unable to apply blueprint', 'error');
     } finally {
       setApplyingMode(null);
+    }
+  }
+
+  async function handleViewAsStudent(courseId: string) {
+    try {
+      const courseDetails = await getCourse(courseId);
+      const firstLessonId = courseDetails?.modules?.[0]?.lessons?.[0]?.id;
+      if (firstLessonId) {
+        router.push(`/course/${courseId}/lesson/${firstLessonId}`);
+      } else {
+        addToast('No lessons found in this course. Please publish or check course structure.', 'info');
+      }
+    } catch (error) {
+      addToast(error instanceof Error ? error.message : 'Unable to load course for preview', 'error');
     }
   }
 
@@ -433,6 +450,15 @@ export function AiCourseStudio({ role, onCourseApplied }: Props) {
                   <button onClick={() => handleApply(true)} disabled={applyingMode !== null} className={`${secondaryButtonClass} border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100`}>
                     {applyingMode === 'review' ? 'Submitting...' : 'Apply And Submit For Review'}
                   </button>
+                  {selectedJob?.course?.id && (
+                    <button
+                      onClick={() => handleViewAsStudent(selectedJob.course.id)}
+                      className={`${secondaryButtonClass} border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100`}
+                    >
+                      <Sparkles className="h-4 w-4" />
+                      View as Student
+                    </button>
+                  )}
                 </div>
               </div>
             )}
